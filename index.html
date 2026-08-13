@@ -352,7 +352,7 @@
   <!-- ==== 申請ガイドボット（試作＝ルールベース／本実装では生成AIに接続） ==== -->
   <button id="botBtn" onclick="botToggle()">💬 申請ガイド</button>
   <div id="botPanel" class="hide">
-    <div id="botHead"><span style="float:right; cursor:pointer; user-select:none" onclick="botSize()" title="拡大/縮小">⤢</span>申請ガイドボット（試作）
+    <div id="botHead"><span style="float:right; cursor:pointer; user-select:none; margin-left:10px" onclick="botToggle()" title="最小化">ー</span><span style="float:right; cursor:pointer; user-select:none" onclick="botSize()" title="大きく／普通">⤢</span>申請ガイドボット（試作）
       <small>この試作はルールベースの応答です。本実装では生成AI（Claude API・学内サーバ経由）に接続し、利用案内・規則の全文を根拠に回答します。</small>
     </div>
     <div id="botLog"></div>
