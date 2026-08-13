@@ -92,6 +92,8 @@
   .flow div.hl{border-color:#cc0000; background:#fff7f7;}
   .sitefoot{text-align:center; font-size:12px; color:#333; border-top:1px solid #ccc; margin-top:34px; padding:16px 0 30px; line-height:1.8;}
   .hide{display:none;}
+  #botPanel.big{width:560px;}
+  #botPanel.big #botLog{height:440px;}
 
   /* ---- 申請ガイドボット ---- */
   #botBtn{position:fixed; right:18px; bottom:18px; z-index:50; background:#2e7d32; color:#fff;
@@ -156,7 +158,18 @@
 <!-- ============ TAB 0 ============ -->
 <section id="tab0">
 
-  <h2 class="step">Step 1　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用代表者の情報（各様式 共通ヘッダ）</span></h2>
+  <h2 class="step">Step 1　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用する演習林（ここで様式・締切・宿泊施設が決まります）</span></h2>
+  <div class="box">
+    <div class="field" style="max-width:420px"><label>利用する演習林</label>
+      <select id="f_forest" onchange="judge()">
+        <option>北海道演習林</option><option>千葉演習林</option><option>秩父演習林</option>
+        <option>田無演習林</option><option>生態水文学研究所</option><option>富士癒しの森研究所</option><option>樹芸研究所</option>
+      </select></div>
+    <div id="forestNote"></div>
+    <p class="aside">※ 施設によって様式・締切・宿泊施設・料金が異なるため、<b>最初に施設を選ぶとフォーム全体がその施設仕様に切り替わる</b>設計。実装では施設マスタで制御（この試作は北海道演習林のみ実装）。</p>
+  </div>
+
+  <h2 class="step">Step 2　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用代表者の情報（各様式 共通ヘッダ）</span></h2>
   <div class="box">
     <div class="grid2">
       <div class="field"><label>氏名</label><input type="text" id="f_name" value="平山 翔湧"></div>
@@ -169,7 +182,7 @@
     <p class="aside">※ 学生・大学院生・ポスドクは提出時に指導教員へCC（利用案内より）→ システムが自動送信。2回目以降はこの欄全体が自動入力されます。</p>
   </div>
 
-  <h2 class="step">Step 2　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用の種類と内容</span></h2>
+  <h2 class="step">Step 3　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用の種類と内容</span></h2>
   <div class="box">
     <div class="grid2">
       <div class="field"><label>利用の種類</label>
@@ -196,7 +209,7 @@
     <p class="aside">※ 利用の許可は<b>年度単位</b>です。年度を越えて継続する場合は年度が替わるごとに改めて提出（→システムが自動リマインド）。同一課題でも利用内容に追加・変更のある場合は再度利用計画書を提出してください。</p>
   </div>
 
-  <h2 class="step">Step 3　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">該当事項のチェック（様式D〜H・宿泊の自動判定）</span></h2>
+  <h2 class="step">Step 4　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">該当事項のチェック（様式D〜H・宿泊の自動判定）</span></h2>
   <div class="box">
     <div class="chips" id="f_flags">
       <span class="chip" data-form="stay" onclick="this.classList.toggle('on');judge()">宿泊施設を利用する</span>
@@ -221,7 +234,7 @@
     <p class="note-red">※現状はこの様式判定・締切確認を利用者が利用案内ページを読んで自力で行っています。ここの迷い・提出漏れをシステムが解消します。</p>
   </div>
 
-  <h2 class="step">Step 4　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用者名簿（〔様式C〕利用者名簿_宿泊申込 に対応）</span></h2>
+  <h2 class="step">Step 5　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用者名簿（〔様式C〕利用者名簿_宿泊申込 に対応）</span></h2>
   <div class="box">
     <div class="roster-row roster-head">
       <span>氏名</span><span>性別</span><span>所属</span><span>身分</span><span>リスク事項（ハチ・食物アレルギー・既往症等）</span><span></span>
@@ -233,20 +246,21 @@
     <div id="soloWarn"></div>
   </div>
 
-  <h2 class="step">Step 5　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">規則等の確認</span></h2>
+  <h2 class="step">Step 6　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">規則等の確認（すべて必須）</span></h2>
   <div class="box">
     <p>利用規則等一覧 ＞＞</p>
     <p>▪ <a href="#" onclick="return false">東京大学大学院農学生命科学研究科附属演習林 利用規則</a><br>
        ▪ <a href="#" onclick="return false">東京大学大学院農学生命科学研究科附属演習林 宿泊施設使用規則</a><br>
        ▪ <a href="#" onclick="return false">入林に際してのルールと注意事項</a></p>
-    <p>☐ 上記の規則・ルールを確認しました<br>
-       ☐ 単独および夜間の入林は原則不可、資材は利用終了時に撤去、廃棄物は利用者の責任で処分することを了解しました<br>
-       ☐ 成果公表時は別刷・要旨等を提出し、成果物に当演習林を利用した旨を明記します（利用後2年間・毎年1〜2月に報告依頼）<br>
-       ☐ 毎年5〜6月の利用者発表会に可能な限り参加します</p>
+    <p><label style="display:block;font-size:13.5px;color:#000"><input type="checkbox" id="rule1"> 上記の規則・ルールを確認しました　<span class="note-red">＊必須</span></label>
+       <label style="display:block;font-size:13.5px;color:#000"><input type="checkbox" id="rule2"> 単独および夜間の入林は原則不可、資材は利用終了時に撤去、廃棄物は利用者の責任で処分することを了解しました　<span class="note-red">＊必須</span></label>
+       <label style="display:block;font-size:13.5px;color:#000"><input type="checkbox" id="rule3"> 成果公表時は別刷・要旨等を提出し、成果物に当演習林を利用した旨を明記します（利用後2年間・毎年1〜2月に報告依頼）　<span class="note-red">＊必須</span></label>
+       <label style="display:block;font-size:13.5px;color:#000"><input type="checkbox" id="rule4"> 毎年5〜6月の利用者発表会に可能な限り参加します　<span class="note-red">＊必須</span></label></p>
   </div>
 
   <div style="text-align:center; margin:18px 0;">
-    <button class="btn" onclick="submitApp()">この内容で申込む（提出締切を自動チェック）</button>
+    <button class="btn" id="goConfirm" onclick="showConfirm()">確認画面に進む</button>
+    <div id="confirmBox" class="hide" style="text-align:left; margin-top:14px;"></div>
     <div id="submitOut" style="margin-top:10px; text-align:left;"></div>
   </div>
 </section>
@@ -273,7 +287,8 @@
   <div class="kpis" id="repKpis"></div>
   <div class="tblwrap" id="repTable"></div>
   <br>
-  <button class="btn sec" onclick="alert('デモ：本実装では Word（本部報告体裁）／Excel／CSV でダウンロード')">Word報告書を出力</button>
+  <button class="btn sec" onclick="downloadWordReport()">📄 Word報告書をダウンロード（.doc）</button>
+  <button class="btn sec" onclick="printReport()">🖨 印刷 / PDF保存</button>
 </section>
 
 <!-- ============ TAB 3 ============ -->
@@ -337,7 +352,7 @@
   <!-- ==== 申請ガイドボット（試作＝ルールベース／本実装では生成AIに接続） ==== -->
   <button id="botBtn" onclick="botToggle()">💬 申請ガイド</button>
   <div id="botPanel" class="hide">
-    <div id="botHead">申請ガイドボット（試作）
+    <div id="botHead"><span style="float:right; cursor:pointer; user-select:none" onclick="botSize()" title="拡大/縮小">⤢</span>申請ガイドボット（試作）
       <small>この試作はルールベースの応答です。本実装では生成AI（Claude API・学内サーバ経由）に接続し、利用案内・規則の全文を根拠に回答します。</small>
     </div>
     <div id="botLog"></div>
@@ -413,6 +428,12 @@ function requiredForms(){
 function judge(){
   const {forms, notes, stay} = requiredForms();
   document.getElementById('stayBox').classList.toggle('hide', !stay);
+  const fEl = document.getElementById('forestNote');
+  if(fEl){
+    const f = document.getElementById('f_forest').value;
+    fEl.innerHTML = (f === '北海道演習林') ? '' :
+      `<div class="warn" style="margin-bottom:0">⚠ この試作画面は北海道演習林のみ実装しています。「${f}」を選ぶと、実装では様式・締切・宿泊施設が${f}仕様（例：秩父=初回20日前/継続10日前/2回目以降は宿泊有無で10日or5日前）に切り替わります。</div>`;
+  }
   let html = '→ 必要書類の自動判定：<b>〔様式' + forms.join('〕＋〔様式').replace(/（[^）]*）(＋|$)/g, '〕$1〔様式').slice(0,-4) + '</b>';
   // シンプルに再構成
   html = '→ 必要書類の自動判定：' + forms.map(f=>'<span class="form-name">〔様式'+f.replace('（','〕').replace(/）.*/,'')+'</span>').join('');
@@ -477,9 +498,11 @@ function submitApp(){
     if(days < 10) warns.push(`利用開始日まで${days}日です。〔様式B〕は<b>利用希望日の10日前まで</b>の提出が必要です。`);
   }
   if(warns.length){
+    document.getElementById('confirmBox').classList.add('hide');
     out.innerHTML = `<div class="warn">⚠ ${warns.join('<br>⚠ ')}<br><span style="font-size:11px">※ 現状はこの締切確認も利用者任せ → システムが送信前に自動チェックします</span></div>`;
     return;
   }
+  document.getElementById('confirmBox').classList.add('hide');
   const {forms} = requiredForms();
   const short = forms.map(f=>f.match(/^[A-H0-9]+/)[0]).join('・');
   apps.push({date: today.toISOString().slice(0,10), no:'（受理待ち）', rep:document.getElementById('f_name').value,
@@ -583,6 +606,137 @@ function botReply(html){
   log.insertAdjacentHTML('beforeend', `<div class="bmsg bot"><span>${html}</span></div>`);
   log.scrollTop = log.scrollHeight;
 }
+
+// ---------------- 必須チェックと確認画面 ----------------
+function validateForm(){
+  const errs = [];
+  const req = [['f_name','氏名'],['f_aff','所属・職名'],['f_mail','e-mail'],['f_title','研究課題・授業科目等の名称'],
+               ['f_from','利用開始日'],['f_to','利用終了日'],['f_desc','利用内容']];
+  req.forEach(([id,label])=>{ if(!document.getElementById(id).value.trim()) errs.push(`「${label}」が未入力です`); });
+  if(new Date(document.getElementById('f_to').value) < new Date(document.getElementById('f_from').value))
+    errs.push('利用終了日が開始日より前になっています');
+  members.forEach((m,i)=>{ if(!m.name.trim()) errs.push(`名簿${i+1}行目の氏名が未入力です`); });
+  ['rule1','rule2','rule3','rule4'].forEach((id,i)=>{
+    if(!document.getElementById(id).checked) errs.push(`Step 6 の確認事項（${i+1}つ目）にチェックがありません`); });
+  return errs;
+}
+
+function deadlineWarns(){
+  const kind = document.getElementById('f_kind').value;
+  const from = new Date(document.getElementById('f_from').value);
+  const today = new Date();
+  const warns = [];
+  if(kind==='res1' || kind==='edu1'){
+    const deadline = new Date(from.getFullYear(), from.getMonth()-1, 20);
+    if(today > deadline) warns.push(`計画書（${kind==='res1'?'様式A1':'様式A2'}）の提出締切＝利用開始月の前月20日（${deadline.getFullYear()}年${deadline.getMonth()+1}月20日）を過ぎています`);
+  }
+  if(kind!=='dataonly'){
+    const days = Math.floor((from - today)/86400000);
+    if(days < 10) warns.push(`利用開始日まで${days}日。様式Bの締切（10日前）を過ぎています`);
+  }
+  return warns;
+}
+
+function showConfirm(){
+  const out = document.getElementById('submitOut');
+  const box = document.getElementById('confirmBox');
+  const errs = validateForm();
+  if(errs.length){
+    box.classList.add('hide');
+    out.innerHTML = `<div class="warn">⚠ 入力が完了していないため確認画面に進めません。<br>・${errs.join('<br>・')}</div>`;
+    return;
+  }
+  out.innerHTML = '';
+  const {forms} = requiredForms();
+  const kinds = {res1:'研究利用（今年度はじめて）',res2:'研究利用（許可証あり）',edu1:'教育利用（今年度はじめて）',
+                 edu2:'教育利用（許可証あり）',visit:'事前打ち合わせ・下見のみ',dataonly:'データ・標本利用のみ（来訪なし）'};
+  const dw = deadlineWarns();
+  const v = id => document.getElementById(id).value;
+  box.innerHTML = `
+    <div class="box" style="border-width:2px">
+      <b>―― 申込内容の確認 ――</b>
+      <div class="tblwrap"><table>
+        <tr><th style="width:32%">利用する演習林</th><td>${v('f_forest')}</td></tr>
+        <tr><th>利用代表者</th><td>${v('f_name')}（${v('f_aff')}）</td></tr>
+        <tr><th>連絡先</th><td>${v('f_mail')} ／ ${v('f_tel')}</td></tr>
+        <tr><th>指導教員（自動CC）</th><td>${v('f_prof')}　${v('f_profmail')}</td></tr>
+        <tr><th>利用の種類</th><td>${kinds[v('f_kind')]}</td></tr>
+        <tr><th>課題名</th><td>${v('f_title')}</td></tr>
+        <tr><th>利用期間</th><td>${v('f_from')} 〜 ${v('f_to')}</td></tr>
+        <tr><th>利用内容</th><td>${v('f_desc')}</td></tr>
+        <tr><th>利用者</th><td>${members.length}名（${members.map(m=>m.name).join('、')}）</td></tr>
+        <tr><th>自動生成される様式</th><td>${forms.map(f=>'〔様式'+f.match(/^[A-H0-9]+/)[0]+'〕').join('')}</td></tr>
+        <tr><th>締切チェック</th><td>${dw.length? '<span class="note-red">⚠ '+dw.join('／')+'</span>' : '✅ すべての締切ルールを満たしています'}</td></tr>
+      </table></div>
+      <div style="text-align:center; margin-top:10px">
+        <button class="btn sec" onclick="document.getElementById('confirmBox').classList.add('hide')">← 修正する</button>
+        <button class="btn" onclick="submitApp()" ${dw.length?'disabled title="締切超過のため送信できません（事務室へ相談）"':''}>この内容で申込む</button>
+        ${dw.length? '<p class="note-red" style="margin-top:6px">締切を過ぎているため送信できません。日程を変更するか、演習林事務室（総務チーム）へご相談ください。</p>':''}
+      </div>
+    </div>`;
+  box.classList.remove('hide');
+  box.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ---------------- 月次報告の実出力（Word互換 .doc ／ 印刷→PDF） ----------------
+function reportHTML(){
+  const month = document.getElementById('repMonth').value;
+  const POS = ['教職員','大学院生','学部学生','高校生','その他'];
+  const rows = {}; POS.forEach(p=>rows[p]={男:0,女:0});
+  let totalPD = 0, list = [];
+  apps.filter(a=>a.state==='受理済' && a.from.slice(0,7)===month).forEach(a=>{
+    const d = (new Date(a.to) - new Date(a.from))/86400000 + 1;
+    list.push(a);
+    a.members.forEach(m=>{ const p = POS.includes(m.pos)?m.pos:'その他'; rows[p][m.sex]+=d; totalPD+=d; });
+  });
+  const y = month.slice(0,4), mo = parseInt(month.slice(5,7));
+  const tm = POS.reduce((s,p)=>s+rows[p].男,0), tf = POS.reduce((s,p)=>s+rows[p].女,0);
+  return `
+  <div style="font-family:'MS Mincho','ＭＳ 明朝',serif; color:#000; max-width:170mm; margin:0 auto; font-size:10.5pt; line-height:1.8">
+    <p style="text-align:right">作成日　${y}年${mo+1>12?1:mo+1}月1日</p>
+    <p style="text-align:center; font-size:14pt; font-weight:bold">北海道演習林　利用状況報告（${y}年${mo}月）</p>
+    <p style="text-align:right">東京大学大学院農学生命科学研究科附属演習林<br>北海道演習林</p>
+    <p><b>1．概況</b></p>
+    <table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse; margin:0 auto; text-align:center">
+      <tr><td><b>受理件数</b></td><td><b>延べ利用人日</b></td></tr>
+      <tr><td>${list.length}件</td><td>${totalPD}人日</td></tr>
+    </table>
+    <p><b>2．身分別・男女別の利用状況（延べ人日）</b></p>
+    <table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse; margin:0 auto; min-width:60%">
+      <tr><td><b>身分</b></td><td><b>男</b></td><td><b>女</b></td><td><b>計</b></td></tr>
+      ${POS.map(p=>`<tr><td>${p}</td><td align="right">${rows[p].男}</td><td align="right">${rows[p].女}</td><td align="right">${rows[p].男+rows[p].女}</td></tr>`).join('')}
+      <tr><td><b>合計</b></td><td align="right"><b>${tm}</b></td><td align="right"><b>${tf}</b></td><td align="right"><b>${totalPD}</b></td></tr>
+    </table>
+    <p><b>3．受理案件の明細</b></p>
+    <table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse; width:100%">
+      <tr><td><b>許可番号</b></td><td><b>課題名等</b></td><td><b>利用代表者</b></td><td><b>利用期間</b></td><td><b>人数</b></td></tr>
+      ${list.map(a=>`<tr><td>${a.no}</td><td>${a.title}</td><td>${a.rep}</td><td>${a.from}〜${a.to}</td><td align="right">${a.n}名</td></tr>`).join('')}
+    </table>
+    <p style="font-size:9pt; color:#555">※ 本報告書は利用申込システムの名簿データから自動生成されたサンプルです。数値・氏名・課題名はすべて架空のものです。</p>
+  </div>`;
+}
+
+function downloadWordReport(){
+  const month = document.getElementById('repMonth').value;
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+  <head><meta charset="utf-8"><title>利用状況報告</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--></head>
+  <body>${reportHTML()}</body></html>`;
+  const blob = new Blob(['\ufeff', html], {type:'application/msword'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `利用状況報告_北海道演習林_${month}.doc`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function printReport(){
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><meta charset="utf-8"><title>利用状況報告（印刷用）</title></head><body>${reportHTML()}<script>window.onload=()=>window.print();<\/script></body></html>`);
+  w.document.close();
+}
+
+// ---------------- ボットの拡大縮小 ----------------
+function botSize(){ document.getElementById('botPanel').classList.toggle('big'); }
 
 renderRoster();
 judge();
