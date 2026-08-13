@@ -127,7 +127,7 @@
       <div class="st-big">北海道演習林</div>
       <div class="st-en">The University of Tokyo Hokkaido Forest</div>
     </div>
-    <span class="toEn"><a href="#" onclick="return false">→ English</a></span>
+    <span class="toEn"><a href="#" onclick="document.getElementById('enNote').classList.toggle('hide');return false">→ English</a></span>
   </div>
 
   <div class="gnav">
@@ -142,6 +142,13 @@
   <div class="crumb"><a href="https://www.uf.a.u-tokyo.ac.jp/hokuen/index.html">トップ</a>　＞　<a href="https://www.uf.a.u-tokyo.ac.jp/hokuen/riyou/riyou.html">利用案内</a>　＞　オンライン利用申込（試作）</div>
 
   <p class="notice">※これは既存の利用案内ページに追加する「オンライン申込」機能の試作画面です（データはすべて架空・どこにも送信されません）</p>
+
+  <div id="enNote" class="box hide" style="border-color:#2e7d32; background:#f7fbf7;">
+    <b>[English]</b> This is a working prototype (demo) of an online application system for the University of Tokyo Forests.
+    All data shown here is fictitious, and nothing you enter is transmitted or stored anywhere.
+    The interface is currently available in Japanese only; an English version is planned for the production release.
+    For inquiries about forest use, please contact the administrative office of each forest.
+  </div>
 
   <h1 class="sec"><span class="leaf"></span>オンライン利用申込（研究・教育目的で利用を希望される方へ）</h1>
   <p>　従来の様式A1〜Hのダウンロード・記入・メール添付に代わり、以下のフォームに1回入力するだけで申込が完了します。
