@@ -3,90 +3,161 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>演習林 利用申込システム（デモ v1）</title>
+<title>北海道演習林 オンライン利用申込（試作）</title>
 <style>
-  :root{
-    --green:#2d5a3d; --green-l:#eaf3ed; --green-m:#4a7c5d;
-    --ink:#22302a; --gray:#68766e; --line:#d5ded8; --bg:#f4f7f5;
-    --accent:#b7541f; --accent-l:#fdf1e8;
-  }
   *{box-sizing:border-box; margin:0; padding:0;}
-  body{font-family:"Yu Gothic UI","Hiragino Sans",Meiryo,sans-serif; background:var(--bg); color:var(--ink); font-size:14px; line-height:1.7;}
-  header{background:var(--green); color:#fff; padding:14px 24px; display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
-  header h1{font-size:17px; font-weight:700;}
-  header .sub{font-size:11.5px; opacity:.75;}
-  nav{background:#fff; border-bottom:2px solid var(--line); display:flex; padding:0 16px; overflow-x:auto;}
-  nav button{border:none; background:none; padding:12px 18px; font-size:13.5px; cursor:pointer; color:var(--gray); border-bottom:3px solid transparent; white-space:nowrap; font-family:inherit;}
-  nav button.on{color:var(--green); border-bottom-color:var(--green); font-weight:700;}
-  main{max-width:980px; margin:0 auto; padding:22px 16px 60px;}
-  .card{background:#fff; border:1px solid var(--line); border-radius:10px; padding:20px 22px; margin-bottom:18px;}
-  .card h2{font-size:15.5px; color:var(--green); margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--line);}
-  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px 18px;}
-  @media(max-width:640px){.grid2{grid-template-columns:1fr;}}
-  label{display:block; font-size:12px; color:var(--gray); margin-bottom:2px;}
+  body{font-family:Meiryo,"Hiragino Kaku Gothic ProN","MS PGothic",sans-serif; background:#fff; color:#000;
+       font-size:14px; line-height:1.9;}
+  a{color:#0033cc;}
+  .wrap{max-width:980px; margin:0 auto; padding:0 14px;}
+
+  /* ---- サイトヘッダ（既存サイトの再現） ---- */
+  .sitehead{display:flex; align-items:center; gap:16px; padding:26px 0 12px; flex-wrap:wrap;}
+  .logo{width:78px; height:78px; border-radius:50%; border:5px solid #2e7d32; color:#2e7d32;
+        display:flex; align-items:center; justify-content:center; font-size:34px; font-weight:800; flex:none;}
+  .st-small{font-size:13px;}
+  .st-big{font-size:29px; font-weight:800; letter-spacing:3px; line-height:1.3;}
+  .st-en{font-size:13px; color:#222; letter-spacing:1px;}
+  .toEn{margin-left:auto; font-size:13px; align-self:flex-end;}
+
+  /* ---- グローバルナビ（水色枠のボックス） ---- */
+  .gnav{display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:6px 0 18px;}
+  .gnav a{display:block; text-align:center; text-decoration:none; color:#333; background:#fff;
+          border:1px solid #aacfe8; border-top:3px double #aacfe8; border-bottom:3px double #aacfe8;
+          padding:6px 2px 4px; line-height:1.4;}
+  .gnav a .jp{font-size:13.5px; letter-spacing:4px;}
+  .gnav a .en{display:block; font-size:9.5px; color:#888; letter-spacing:1px;}
+  .gnav a.here{border-color:#2e7d32; background:#f3f9f3; color:#1b5e20; font-weight:700;}
+  @media(max-width:700px){.gnav{grid-template-columns:repeat(3,1fr);} .st-big{font-size:22px;}}
+
+  .crumb{font-size:12.5px; margin-bottom:14px;}
+  .notice{color:#cc0000; text-decoration:underline; text-align:center; font-weight:700; font-size:13.5px; margin:6px 0 18px;}
+
+  /* ---- 見出し・ボックス（既存サイトの部品） ---- */
+  .leaf{display:inline-block; width:14px; height:9px; background:#4a7c3f; border-radius:60% 40% 60% 40%; margin-right:7px;}
+  h1.sec{font-size:15.5px; font-weight:700; text-decoration:underline; border-bottom:1px solid #333;
+         padding-bottom:6px; margin:20px 0 12px;}
+  .acc{border:1px solid #bbb; color:#444; font-weight:700; padding:9px 14px; margin:16px 0 10px;
+       text-decoration:underline; font-size:14px;}
+  h2.step{font-family:Georgia,"Times New Roman",serif; font-style:italic; font-weight:700; font-size:19px; margin:26px 0 8px;}
+  .box{border:1px solid #888; padding:12px 16px; margin:8px 0 12px;}
+  .arrow{padding-left:1.2em; text-indent:-1.2em; margin:6px 0;}
+  .arrow:before{content:"► "; color:#333;}
+  .form-name{color:#cc0000; font-weight:700;}
+  .note-red{color:#cc0000; font-size:13px;}
+  .aside{font-size:12.5px; color:#333;}
+
+  /* ---- フォーム部品（サイトの雰囲気を保った控えめな装飾） ---- */
+  label{display:block; font-size:12px; color:#555; margin-bottom:1px;}
   input[type=text],input[type=email],input[type=date],select,textarea{
-    width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:6px; font-size:13.5px; font-family:inherit; background:#fff;}
+    width:100%; padding:6px 8px; border:1px solid #999; font-size:13.5px; font-family:inherit; background:#fff;}
   textarea{resize:vertical;}
-  .field{margin-bottom:10px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:8px 20px;}
+  @media(max-width:640px){.grid2{grid-template-columns:1fr;}}
+  .field{margin-bottom:8px;}
   .chips{display:flex; gap:8px; flex-wrap:wrap;}
-  .chip{border:1.5px solid var(--line); border-radius:20px; padding:5px 14px; cursor:pointer; font-size:13px; user-select:none; background:#fff;}
-  .chip.on{background:var(--green); color:#fff; border-color:var(--green);}
-  .btn{background:var(--green); color:#fff; border:none; border-radius:7px; padding:10px 22px; font-size:14px; cursor:pointer; font-family:inherit; font-weight:700;}
-  .btn.sec{background:#fff; color:var(--green); border:1.5px solid var(--green); font-weight:400;}
-  .note{background:var(--green-l); border-left:4px solid var(--green-m); padding:10px 14px; border-radius:0 8px 8px 0; font-size:12.5px; margin:12px 0;}
-  .warn-note{background:var(--accent-l); border-left:4px solid var(--accent); padding:10px 14px; border-radius:0 8px 8px 0; font-size:12.5px; margin:12px 0;}
+  .chip{border:1px solid #888; padding:4px 12px; cursor:pointer; font-size:13px; user-select:none; background:#fff;}
+  .chip:before{content:"☐ ";}
+  .chip.on{background:#eef6ee; border-color:#2e7d32; color:#1b5e20; font-weight:700;}
+  .chip.on:before{content:"☑ ";}
+  .btn{background:#2e7d32; color:#fff; border:1px solid #1b5e20; padding:9px 26px; font-size:14px; cursor:pointer; font-family:inherit; font-weight:700;}
+  .btn.sec{background:#fff; color:#1b5e20; font-weight:400; padding:6px 14px;}
+  .judge{border:1px dashed #2e7d32; background:#f7fbf7; padding:10px 14px; font-size:13px; margin:10px 0;}
+  .warn{border:1px dashed #cc0000; background:#fff7f7; color:#cc0000; padding:10px 14px; font-size:13px; margin:10px 0;}
   table{width:100%; border-collapse:collapse; font-size:12.5px;}
   .tblwrap{overflow-x:auto;}
-  th,td{border:1px solid var(--line); padding:6px 8px; text-align:left;}
-  th{background:var(--green-l); font-weight:700; color:var(--ink);}
+  th,td{border:1px solid #999; padding:5px 8px; text-align:left;}
+  th{background:#f0f0f0; font-weight:700;}
   td.num,th.num{text-align:right; font-variant-numeric:tabular-nums;}
-  .tag{display:inline-block; border-radius:4px; padding:1px 8px; font-size:11px; font-weight:700; margin:1px 2px;}
-  .tag.b{background:#e3ecf7; color:#2c5282;}
-  .tag.g{background:#e3f5e8; color:#276749;}
-  .tag.y{background:#fdf3d7; color:#8a6d1a;}
-  .roster-row{display:grid; grid-template-columns:1.2fr .6fr 1.4fr .9fr 1.4fr 30px; gap:6px; margin-bottom:6px; align-items:center;}
-  .roster-row input,.roster-row select{padding:6px 8px; font-size:12.5px;}
-  .roster-head{font-size:11px; color:var(--gray);}
-  .del{border:none; background:none; color:#c0392b; font-size:16px; cursor:pointer;}
+  .roster-row{display:grid; grid-template-columns:1.2fr .6fr 1.4fr .9fr 1.4fr 30px; gap:5px; margin-bottom:5px; align-items:center;}
+  .roster-row input,.roster-row select{padding:5px 7px; font-size:12.5px;}
+  .roster-head{font-size:11px; color:#666;}
+  .del{border:none; background:none; color:#cc0000; font-size:15px; cursor:pointer;}
+
+  /* ---- タブ（利用案内内のサブメニュー風） ---- */
+  .tabs{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:0 0 18px;}
+  .tabs button{border:1px solid #aacfe8; border-top:3px double #aacfe8; border-bottom:3px double #aacfe8;
+    background:#fff; padding:7px 4px; font-size:13px; cursor:pointer; font-family:inherit; color:#333; line-height:1.4;}
+  .tabs button.on{border-color:#2e7d32; background:#f3f9f3; color:#1b5e20; font-weight:700;}
+  @media(max-width:700px){.tabs{grid-template-columns:repeat(2,1fr);}}
+
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px;}
+  .kpi{border:1px solid #999; padding:10px 14px;}
+  .kpi .v{font-size:24px; font-weight:800; color:#1b5e20; font-variant-numeric:tabular-nums;}
+  .kpi .l{font-size:11.5px; color:#555;}
   .flow{display:flex; gap:0; flex-wrap:wrap; margin:10px 0;}
-  .flow div{background:#fff; border:1.5px solid var(--line); padding:8px 14px; font-size:12px; position:relative; margin-right:18px; border-radius:6px; margin-bottom:8px;}
-  .flow div:after{content:"→"; position:absolute; right:-16px; top:8px; color:var(--gray);}
+  .flow div{background:#fff; border:1px solid #999; padding:6px 12px; font-size:12px; position:relative; margin-right:18px; margin-bottom:8px;}
+  .flow div:after{content:"→"; position:absolute; right:-16px; top:6px; color:#666;}
   .flow div:last-child:after{content:"";}
-  .flow div.hl{border-color:var(--accent); background:var(--accent-l);}
-  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:16px;}
-  .kpi{background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px 16px;}
-  .kpi .v{font-size:26px; font-weight:800; color:var(--green); font-variant-numeric:tabular-nums;}
-  .kpi .l{font-size:11.5px; color:var(--gray);}
-  footer{text-align:center; color:var(--gray); font-size:11px; padding:20px;}
+  .flow div.hl{border-color:#cc0000; background:#fff7f7;}
+  .sitefoot{text-align:center; font-size:12px; color:#333; border-top:1px solid #ccc; margin-top:34px; padding:16px 0 30px; line-height:1.8;}
   .hide{display:none;}
-  a{color:var(--green);}
+
+  /* ---- 申請ガイドボット ---- */
+  #botBtn{position:fixed; right:18px; bottom:18px; z-index:50; background:#2e7d32; color:#fff;
+    border:1px solid #1b5e20; border-radius:24px; padding:10px 18px; font-size:13.5px; font-weight:700;
+    cursor:pointer; font-family:inherit; box-shadow:0 2px 8px rgba(0,0,0,.25);}
+  #botPanel{position:fixed; right:18px; bottom:70px; z-index:50; width:330px; max-width:calc(100vw - 36px);
+    background:#fff; border:1px solid #2e7d32; box-shadow:0 4px 16px rgba(0,0,0,.25); display:flex; flex-direction:column;}
+  #botHead{background:#2e7d32; color:#fff; padding:8px 12px; font-size:13px; font-weight:700;}
+  #botHead small{display:block; font-weight:400; font-size:10px; opacity:.85;}
+  #botLog{height:280px; overflow-y:auto; padding:10px; font-size:12.5px; background:#f7faf7;}
+  .bmsg{margin:6px 0; line-height:1.6;}
+  .bmsg.user{text-align:right;}
+  .bmsg.user span{background:#dcedc8; padding:5px 10px; border-radius:10px 10px 0 10px; display:inline-block; max-width:85%; text-align:left;}
+  .bmsg.bot span{background:#fff; border:1px solid #c8dcc8; padding:5px 10px; border-radius:10px 10px 10px 0; display:inline-block; max-width:90%;}
+  #botQuick{display:flex; flex-wrap:wrap; gap:5px; padding:7px 10px; border-top:1px solid #ddd; background:#fff;}
+  #botQuick button{border:1px solid #2e7d32; color:#1b5e20; background:#fff; border-radius:12px;
+    padding:2px 9px; font-size:11px; cursor:pointer; font-family:inherit;}
+  #botInput{display:flex; border-top:1px solid #ddd;}
+  #botInput input{flex:1; border:none; padding:9px 10px; font-size:13px; font-family:inherit; outline:none;}
+  #botInput button{border:none; background:#2e7d32; color:#fff; padding:0 16px; cursor:pointer; font-family:inherit;}
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<header>
-  <h1>🌲 東京大学演習林 利用申込システム</h1>
-  <span class="sub">プロトタイプ v1（2026-08-13・平山作成）— 北海道演習林「利用案内」ページ（Step1〜3・様式A1〜H・宿泊料金表）に準拠</span>
-</header>
+  <!-- ==== 既存サイトのヘッダ再現 ==== -->
+  <div class="sitehead">
+    <div class="logo">演</div>
+    <div>
+      <div class="st-small">東京大学大学院農学生命科学研究科附属演習林</div>
+      <div class="st-big">北海道演習林</div>
+      <div class="st-en">The University of Tokyo Hokkaido Forest</div>
+    </div>
+    <span class="toEn"><a href="#" onclick="return false">→ English</a></span>
+  </div>
 
-<nav>
-  <button class="on" onclick="tab(0,this)">① 利用者：申込フォーム</button>
-  <button onclick="tab(1,this)">② 職員：申込一覧・受理</button>
-  <button onclick="tab(2,this)">③ 月次利用状況（自動集計）</button>
-  <button onclick="tab(3,this)">④ 現状フローとの対比</button>
-</nav>
+  <div class="gnav">
+    <a href="https://www.uf.a.u-tokyo.ac.jp/hokuen/index.html"><span class="jp">トップ</span><span class="en">TOP</span></a>
+    <a href="#" onclick="return false"><span class="jp">概要</span><span class="en">OUTLINE</span></a>
+    <a href="https://www.uf.a.u-tokyo.ac.jp/hokuen/riyou/riyou.html"><span class="jp">利用案内</span><span class="en">GUIDE</span></a>
+    <a href="#" onclick="return false"><span class="jp">トピックス</span><span class="en">TOPICS</span></a>
+    <a href="#" onclick="return false"><span class="jp">アクセス</span><span class="en">ACCESS</span></a>
+    <a href="#" class="here" onclick="return false"><span class="jp">オンライン申込</span><span class="en">ONLINE FORM</span></a>
+  </div>
 
-<main>
+  <div class="crumb"><a href="https://www.uf.a.u-tokyo.ac.jp/hokuen/index.html">トップ</a>　＞　<a href="https://www.uf.a.u-tokyo.ac.jp/hokuen/riyou/riyou.html">利用案内</a>　＞　オンライン利用申込（試作）</div>
+
+  <p class="notice">※これは既存の利用案内ページに追加する「オンライン申込」機能の試作画面です（データはすべて架空・どこにも送信されません）</p>
+
+  <h1 class="sec"><span class="leaf"></span>オンライン利用申込（研究・教育目的で利用を希望される方へ）</h1>
+  <p>　従来の様式A1〜Hのダウンロード・記入・メール添付に代わり、以下のフォームに1回入力するだけで申込が完了します。
+  回答内容から<b>必要な様式・提出締切を自動判定</b>し、学生の場合は指導教員に自動でCC（同報）されます。
+  従来どおりの様式による提出も引き続き可能です。</p>
+
+  <div class="tabs">
+    <button class="on" onclick="tab(0,this)">① 利用者：申込フォーム</button>
+    <button onclick="tab(1,this)">② 職員：申込一覧・受理</button>
+    <button onclick="tab(2,this)">③ 月次利用状況（自動集計）</button>
+    <button onclick="tab(3,this)">④ 現状フローとの対比</button>
+  </div>
 
 <!-- ============ TAB 0 ============ -->
 <section id="tab0">
-  <div class="note">
-    <b>デモの主旨：</b>利用者は<b>1つのフォームに1回だけ</b>入力する。利用案内の Step1〜3 の様式判定・締切ルールを
-    システムが肩代わりし、様式A1〜Hに相当するデータを裏で構造化して保存する。<b>WordとExcelを行き来する作業が消える。</b>
-  </div>
 
-  <div class="card">
-    <h2>STEP 1　利用代表者の情報（各様式 共通ヘッダ）</h2>
+  <h2 class="step">Step 1　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用代表者の情報（各様式 共通ヘッダ）</span></h2>
+  <div class="box">
     <div class="grid2">
       <div class="field"><label>氏名</label><input type="text" id="f_name" value="平山 翔湧"></div>
       <div class="field"><label>所属・職名</label><input type="text" id="f_aff" value="東京大学 工学部 システム創成学科 4年"></div>
@@ -94,32 +165,27 @@
       <div class="field"><label>電話</label><input type="text" id="f_tel" value="03-XXXX-XXXX"></div>
       <div class="field"><label>指導教員または機関等責任者（職・氏名）</label><input type="text" id="f_prof" value="教授・石川 ○○"></div>
       <div class="field"><label>指導教員 e-mail（学生の場合、提出時に自動CC）</label><input type="email" id="f_profmail" value="ishikawa@example.u-tokyo.ac.jp"></div>
-      <div class="field"><label>利用する演習林</label>
-        <select id="f_forest">
-          <option>北海道演習林</option><option>千葉演習林</option><option>秩父演習林</option>
-          <option>田無演習林</option><option>生態水文学研究所</option><option>富士癒しの森研究所</option><option>樹芸研究所</option>
-        </select></div>
     </div>
-    <div class="note" style="margin-bottom:0">※ 利用案内の指定「学生・大学院生・ポスドクは提出時に指導教員へCC」→ <b>システムが自動CC</b>。2回目以降はこの欄全体が自動入力。</div>
+    <p class="aside">※ 学生・大学院生・ポスドクは提出時に指導教員へCC（利用案内より）→ システムが自動送信。2回目以降はこの欄全体が自動入力されます。</p>
   </div>
 
-  <div class="card">
-    <h2>STEP 2　利用の種類と内容</h2>
+  <h2 class="step">Step 2　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用の種類と内容</span></h2>
+  <div class="box">
     <div class="grid2">
-      <div class="field"><label>利用の種類（利用案内 Step1〜2 に対応）</label>
+      <div class="field"><label>利用の種類</label>
         <select id="f_kind" onchange="judge()">
-          <option value="res1">研究利用・今年度はじめて（様式A1 研究計画書から）</option>
-          <option value="res2">研究利用・利用許可証あり（都度の様式Bから）</option>
-          <option value="edu1">教育利用・今年度はじめて（様式A2 教育計画書から）</option>
-          <option value="edu2">教育利用・利用許可証あり（都度の様式Bから）</option>
-          <option value="visit">事前打ち合わせ・下見のみ（計画書不要）</option>
-          <option value="dataonly">データ・標本利用のみで来訪なし（様式B・C不要）</option>
+          <option value="res1">研究利用・今年度はじめて（〔様式A1〕研究計画書から）</option>
+          <option value="res2">研究利用・利用許可証あり（都度の〔様式B〕から)</option>
+          <option value="edu1">教育利用・今年度はじめて（〔様式A2〕教育計画書から）</option>
+          <option value="edu2">教育利用・利用許可証あり（都度の〔様式B〕から）</option>
+          <option value="visit">事前打ち合わせ・下見のみ（利用計画書は不要）</option>
+          <option value="dataonly">データ・標本利用のみで来訪なし（様式B・Cは不要）</option>
         </select></div>
       <div class="field"><label>研究課題・授業科目等の名称</label><input type="text" id="f_title" value="森林GX/DXに関する現地調査"></div>
       <div class="field"><label>利用開始日</label><input type="date" id="f_from" value="2026-10-05" onchange="judge()"></div>
       <div class="field"><label>利用終了日</label><input type="date" id="f_to" value="2026-10-07" onchange="judge()"></div>
-      <div class="field"><label>利用内容（「具体的に何をするか」を記載）</label><textarea id="f_desc" rows="2">林内での植生調査およびセンサー設置場所の下見</textarea></div>
-      <div class="field"><label>協力依頼事項（教職員の講習等は原則講習料あり・要相談）</label>
+      <div class="field"><label>利用内容（具体的に何をするのかが分かるように）</label><textarea id="f_desc" rows="2">林内での植生調査およびセンサー設置場所の下見</textarea></div>
+      <div class="field"><label>協力依頼事項（講習等の講師依頼は原則講習料の納付が必要・要相談）</label>
         <div class="chips" id="f_coop">
           <span class="chip" onclick="this.classList.toggle('on')">現地への送迎</span>
           <span class="chip" onclick="this.classList.toggle('on')">調査補助</span>
@@ -127,161 +193,173 @@
           <span class="chip" onclick="this.classList.toggle('on')">機器・資材の貸与</span>
         </div></div>
     </div>
-    <div class="note" style="margin-bottom:0">※ 利用許可は<b>年度単位</b>。年度をまたぐ場合は翌年度に改めて提出（→システムが年度替わりに<b>自動リマインド</b>）。同一課題でも内容に追加・変更がある場合は計画書を再提出。</div>
+    <p class="aside">※ 利用の許可は<b>年度単位</b>です。年度を越えて継続する場合は年度が替わるごとに改めて提出（→システムが自動リマインド）。同一課題でも利用内容に追加・変更のある場合は再度利用計画書を提出してください。</p>
   </div>
 
-  <div class="card">
-    <h2>STEP 3　該当事項のチェック（様式D〜H の自動判定・利用案内 Step3 に対応）</h2>
+  <h2 class="step">Step 3　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">該当事項のチェック（様式D〜H・宿泊の自動判定）</span></h2>
+  <div class="box">
     <div class="chips" id="f_flags">
       <span class="chip" data-form="stay" onclick="this.classList.toggle('on');judge()">宿泊施設を利用する</span>
-      <span class="chip" data-form="D" onclick="this.classList.toggle('on');judge()">演習林所有データの利用（様式D）</span>
-      <span class="chip" data-form="E" onclick="this.classList.toggle('on');judge()">標本・試料（種子・苗木含む）の提供・利用（様式E）</span>
-      <span class="chip" data-form="F" onclick="this.classList.toggle('on');judge()">無人航空機を飛行させる（様式F）</span>
-      <span class="chip" data-form="G" onclick="this.classList.toggle('on');judge()">脊椎動物を対象とする（様式G）</span>
-      <span class="chip" data-form="H" onclick="this.classList.toggle('on');judge()">化学物質・生物等の持ち込み（様式H）</span>
+      <span class="chip" data-form="D" onclick="this.classList.toggle('on');judge()">演習林所有データの利用</span>
+      <span class="chip" data-form="E" onclick="this.classList.toggle('on');judge()">標本・試料（種子・苗木含む）の提供・利用</span>
+      <span class="chip" data-form="F" onclick="this.classList.toggle('on');judge()">無人航空機を飛行させる</span>
+      <span class="chip" data-form="G" onclick="this.classList.toggle('on');judge()">脊椎動物を対象とする</span>
+      <span class="chip" data-form="H" onclick="this.classList.toggle('on');judge()">化学物質・生物等の持ち込み</span>
     </div>
     <div id="stayBox" class="hide" style="margin-top:10px">
       <div class="grid2">
-        <div class="field"><label>宿泊施設の選択（様式C 宿泊申込に対応）</label>
+        <div class="field"><label>宿泊施設の選択（〔様式C〕宿泊申込に対応）</label>
           <select id="f_facility" onchange="judge()">
-            <option value="yamabe">山部宿泊施設（食事なし・自炊可・定員12名）</option>
-            <option value="seminar">セミナーハウス（食事あり・自炊不可・定員32名・5〜10月のみ）</option>
+            <option value="yamabe">山部宿泊施設（山部事務所併設・食事なし・自炊可・定員12名）</option>
+            <option value="seminar">セミナーハウス（麓郷地区・食事あり・自炊不可・定員32名・5〜10月のみ）</option>
           </select></div>
         <div class="field"><label>宿泊見積（施設使用料・名簿と泊数から自動計算）</label>
-          <div id="feeOut" class="note" style="margin:0">—</div></div>
+          <div id="feeOut" class="judge" style="margin:0">—</div></div>
       </div>
     </div>
-    <div id="judgeOut" class="note">—</div>
-    <div class="warn-note" style="margin-bottom:0">
-      現状はこの様式判定・締切確認を<b>利用者が利用案内ページを読んで自力で行う</b>。ここの迷い・提出漏れが差し戻しの主要因のはず → ヒアリングで要確認。
-    </div>
+    <div id="judgeOut" class="judge">—</div>
+    <p class="note-red">※現状はこの様式判定・締切確認を利用者が利用案内ページを読んで自力で行っています。ここの迷い・提出漏れをシステムが解消します。</p>
   </div>
 
-  <div class="card">
-    <h2>STEP 4　利用者名簿（様式C相当）</h2>
+  <h2 class="step">Step 4　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用者名簿（〔様式C〕利用者名簿_宿泊申込 に対応）</span></h2>
+  <div class="box">
     <div class="roster-row roster-head">
-      <span>氏名</span><span>性別</span><span>所属</span><span>身分</span><span>リスク事項（アレルギー・既往症等）</span><span></span>
+      <span>氏名</span><span>性別</span><span>所属</span><span>身分</span><span>リスク事項（ハチ・食物アレルギー・既往症等）</span><span></span>
     </div>
     <div id="roster"></div>
     <button class="btn sec" onclick="addMember()">＋ 利用者を追加</button>
-    <div class="note">人数内訳（教職員/院生/学部生…×男女）は<b>名簿から自動集計</b>。リスク事項は<b>閲覧権限を現地担当者のみに制限</b>する想定。
-    利用者未確定でも申込可能で、確定後にこの画面から追記→自動で差分提出。</div>
+    <p class="aside">※ 人数内訳（教職員/院生/学部生…×男女）は名簿から自動集計されます。リスク事項は閲覧権限を現地担当者のみに制限する想定。
+    利用者が未確定・変更の場合は、確定後にこの画面から追記してください（自動で差分提出）。</p>
     <div id="soloWarn"></div>
   </div>
 
-  <div class="card">
-    <h2>STEP 5　規則の確認（システムに取り込まず、原文へリンクする部分）</h2>
-    <div class="note" style="margin-top:0">
-      ☐ <a href="#" onclick="return false">演習林利用規則</a>・
-      <a href="#" onclick="return false">宿泊施設使用規則</a>・
-      <a href="#" onclick="return false">入林に際してのルールと注意事項</a> を確認しました<br>
-      ☐ 単独および夜間の入林は原則不可／資材は利用終了時に撤去／廃棄物は利用者が処分、を了解しました<br>
-      ☐ 成果公表時は別刷・要旨を提出し、成果物に当演習林利用の旨を明記します（利用後2年間・毎年1〜2月に報告依頼あり）<br>
-      ☐ 5〜6月の利用者発表会に可能な限り参加します
-    </div>
+  <h2 class="step">Step 5　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">規則等の確認</span></h2>
+  <div class="box">
+    <p>利用規則等一覧 ＞＞</p>
+    <p>▪ <a href="#" onclick="return false">東京大学大学院農学生命科学研究科附属演習林 利用規則</a><br>
+       ▪ <a href="#" onclick="return false">東京大学大学院農学生命科学研究科附属演習林 宿泊施設使用規則</a><br>
+       ▪ <a href="#" onclick="return false">入林に際してのルールと注意事項</a></p>
+    <p>☐ 上記の規則・ルールを確認しました<br>
+       ☐ 単独および夜間の入林は原則不可、資材は利用終了時に撤去、廃棄物は利用者の責任で処分することを了解しました<br>
+       ☐ 成果公表時は別刷・要旨等を提出し、成果物に当演習林を利用した旨を明記します（利用後2年間・毎年1〜2月に報告依頼）<br>
+       ☐ 毎年5〜6月の利用者発表会に可能な限り参加します</p>
   </div>
 
-  <div class="card" style="text-align:center">
-    <button class="btn" style="font-size:15px; padding:12px 40px" onclick="submitApp()">この内容で申込む（締切ルールを自動チェック）</button>
-    <div id="submitOut" style="margin-top:10px"></div>
+  <div style="text-align:center; margin:18px 0;">
+    <button class="btn" onclick="submitApp()">この内容で申込む（提出締切を自動チェック）</button>
+    <div id="submitOut" style="margin-top:10px; text-align:left;"></div>
   </div>
 </section>
 
 <!-- ============ TAB 1 ============ -->
 <section id="tab1" class="hide">
-  <div class="note"><b>職員側の画面。</b>申込は一覧に自動で入る。受理→利用許可証（許可番号）発行もここで完結し、利用者にメールが飛ぶ想定。</div>
-  <div class="card">
-    <h2>申込一覧（北海道演習林）</h2>
-    <div class="tblwrap">
-    <table id="appTable">
-      <thead><tr><th>受付日</th><th>許可番号</th><th>代表者</th><th>課題名</th><th>期間</th><th class="num">人数</th><th>様式</th><th>状態</th><th></th></tr></thead>
-      <tbody></tbody>
-    </table>
-    </div>
+  <div class="acc">⊕ 申込一覧（職員用・北海道演習林事務室 総務チーム）</div>
+  <p class="aside">申込はこの一覧に自動で入ります。受理→「利用許可証」（許可番号）の発行もここで完結し、利用者と指導教員に通知メールが送られる想定です。</p>
+  <div class="tblwrap">
+  <table id="appTable">
+    <thead><tr><th>受付日</th><th>許可番号</th><th>代表者</th><th>課題名</th><th>期間</th><th class="num">人数</th><th>様式</th><th>状態</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
   </div>
 </section>
 
 <!-- ============ TAB 2 ============ -->
 <section id="tab2" class="hide">
-  <div class="note">
-    <b>ここが職員の手入力が消える場所。</b>受理済み申込の名簿データから、月次の利用状況（延べ人日・身分別・男女別）を
-    <b>ボタン1つで集計</b>。現状はこれを各地方演習林の担当者が手入力で報告している。<b>Word形式の報告書としても出力できる</b>（サンプル作成済み）。
+  <div class="acc">⊕ 月次利用状況報告（自動生成）</div>
+  <p class="aside"><b>ここが職員の手入力が消える場所です。</b>受理済み申込の名簿データから、月次の利用状況（延べ人日・身分別・男女別）をボタン1つで集計します。<b>Word形式の報告書として出力できます</b>（サンプル作成済み）。</p>
+  <div class="field" style="max-width:220px"><label>対象月</label>
+    <select id="repMonth" onchange="renderReport()"><option value="2026-10">2026年10月</option><option value="2026-11">2026年11月</option></select>
   </div>
-  <div class="card">
-    <h2>月次利用状況報告（自動生成）</h2>
-    <div class="field" style="max-width:220px"><label>対象月</label>
-      <select id="repMonth" onchange="renderReport()"><option value="2026-10">2026年10月</option><option value="2026-11">2026年11月</option></select>
-    </div>
-    <div class="kpis" id="repKpis"></div>
-    <div class="tblwrap" id="repTable"></div>
-    <br>
-    <button class="btn sec" onclick="alert('デモ：本実装では Word（本部報告体裁）／Excel／CSV でダウンロード')">📄 Word報告書を出力</button>
-  </div>
+  <div class="kpis" id="repKpis"></div>
+  <div class="tblwrap" id="repTable"></div>
+  <br>
+  <button class="btn sec" onclick="alert('デモ：本実装では Word（本部報告体裁）／Excel／CSV でダウンロード')">Word報告書を出力</button>
 </section>
 
 <!-- ============ TAB 3 ============ -->
 <section id="tab3" class="hide">
-  <div class="card">
-    <h2>現状のフロー（利用案内ページ Step1〜3 を整理）</h2>
-    <div class="flow">
-      <div>利用案内を読む</div><div class="hl">Step1 計画書（A1研究/A2教育）を前月20日までに提出</div>
-      <div>利用許可証の発行</div><div class="hl">Step2 都度、様式B＋名簿C（宿泊申込含む）を10日前までに提出</div>
-      <div class="hl">Step3 該当すれば D標本データ/E試料/F無人機/G脊椎動物/H持込み を追加提出</div>
-      <div class="hl">不備なら差し戻し</div><div>受理</div><div class="hl">職員が月次を手入力で報告</div>
-    </div>
-    <h2 style="margin-top:18px">このシステムでのフロー</h2>
-    <div class="flow">
-      <div>フォームに1回入力（2回目以降は大半が自動入力）</div><div>必要様式・締切を自動判定、入力漏れは送信時に検知</div>
-      <div>指導教員へ自動CC</div><div>職員は一覧で受理するだけ</div><div>月次報告はWordでワンクリック生成</div>
-    </div>
-    <div class="note">
-      <b>効果の見立て</b><br>
-      ・利用者：様式判定＋転記の時間（推定30〜60分/回）→ <b>10分</b><br>
-      ・職員：差し戻し往復の削減＋月次手入力（推定数時間/月）→ <b>ほぼゼロ</b><br>
-      ・副次効果：名簿・リスク情報が構造化され、<b>緊急時に「今、誰が林内にいるか」を即座に出せる</b>
-    </div>
+  <div class="acc">⊕ 現状のフロー（利用案内 Step1〜3）</div>
+  <div class="flow">
+    <div>利用案内を読む</div><div class="hl">Step1 計画書（<span class="form-name">A1</span>研究/<span class="form-name">A2</span>教育）を前月20日までに提出</div>
+    <div>利用許可証の発行</div><div class="hl">Step2 都度〔様式B〕＋名簿〔様式C〕を10日前までに提出</div>
+    <div class="hl">Step3 該当すれば D データ／E 標本・試料／F 無人航空機／G 脊椎動物／H 持込み を追加提出</div>
+    <div class="hl">不備なら差し戻し</div><div>受理</div><div class="hl">職員が月次を手入力で報告</div>
+  </div>
+  <div class="acc">⊕ このシステムでのフロー</div>
+  <div class="flow">
+    <div>フォームに1回入力（2回目以降は大半が自動入力）</div><div>必要様式・締切を自動判定、入力漏れは送信時に検知</div>
+    <div>指導教員へ自動CC</div><div>職員は一覧で受理するだけ</div><div>月次報告はWordでワンクリック生成</div>
+  </div>
+  <div class="box">
+    <b>効果の見立て</b><br>
+    <div class="arrow">利用者：様式判定＋転記の時間（推定30〜60分/回）→ <b>10分</b></div>
+    <div class="arrow">職員：差し戻し往復の削減＋月次手入力（推定数時間/月）→ <b>ほぼゼロ</b></div>
+    <div class="arrow">副次効果：名簿・リスク情報が構造化され、<b>緊急時に「今、誰が林内にいるか」を即座に出せる</b></div>
   </div>
 
-  <div class="card">
-    <h2>利用案内ページとの関係 — 何を取り込み、何をリンクで残すか</h2>
-    <div class="tblwrap">
-    <table>
-      <thead><tr><th>区分</th><th>対象</th><th>扱い</th></tr></thead>
-      <tbody>
-        <tr><td><b>システムに取り込む</b><br>（手続きを置き換える）</td>
-            <td>様式A1〜Hの判定と入力／締切ルール（計画書=前月20日・申込書=10日前）／名簿と人数内訳／宿泊申込と料金見積／指導教員CC／月次集計</td>
-            <td>フォーム・自動判定・自動計算</td></tr>
-        <tr><td><b>リンクで残す</b><br>（原文が正）</td>
-            <td>演習林利用規則／宿泊施設使用規則／入林ルール／データ利用内規／標本・試料利用内規</td>
-            <td>申込前に確認チェック＋原文リンク（STEP 5）。規則の改定はサイト側だけ直せばよい</td></tr>
-        <tr><td><b>将来の自動化候補</b></td>
-            <td>成果報告の督促（利用後2年・毎年1〜2月）／年度更新のリマインド／利用者発表会の案内／無人航空機・持込み確認書の「都度提出」管理</td>
-            <td>登録データからのリマインドメール自動送信</td></tr>
-      </tbody>
-    </table>
-    </div>
+  <div class="acc">⊕ 既存サイトとの関係 — 何を取り込み、何をリンクで残すか</div>
+  <div class="tblwrap">
+  <table>
+    <thead><tr><th>区分</th><th>対象</th><th>扱い</th></tr></thead>
+    <tbody>
+      <tr><td><b>システムに取り込む</b><br>（手続きを置き換える）</td>
+          <td>様式A1〜Hの判定と入力／締切ルール（計画書=前月20日・申込書=10日前）／名簿と人数内訳／宿泊申込と料金見積／指導教員CC／月次集計</td>
+          <td>このフォーム</td></tr>
+      <tr><td><b>リンクで残す</b><br>（原文が正）</td>
+          <td>利用規則／宿泊施設使用規則／入林ルール／データ利用内規／標本・試料利用内規</td>
+          <td>Step5で確認チェック＋原文リンク。規則の改定はサイト側だけ直せばよい</td></tr>
+      <tr><td><b>既存サイト側の変更</b></td>
+          <td>利用案内ページの「提出書類」の項に「オンライン申込はこちら」のリンクを1つ追加するだけ。<b>サイトを作り直す必要はない</b></td>
+          <td>リンク1行</td></tr>
+      <tr><td><b>将来の自動化候補</b></td>
+          <td>成果報告の督促（利用後2年・毎年1〜2月）／年度更新リマインド／利用者発表会（5〜6月）の案内／F・Hの「都度提出」管理</td>
+          <td>登録データからのリマインドメール自動送信</td></tr>
+    </tbody>
+  </table>
   </div>
 
-  <div class="card">
-    <h2>実装メモ（FileMaker／MS Forms・Google Forms 連携の両にらみ）</h2>
-    <div class="tblwrap">
-    <table>
-      <thead><tr><th>このデモ</th><th>実装の選択肢</th></tr></thead>
-      <tbody>
-        <tr><td>申込フォーム（Web）</td><td>FileMaker WebDirect ／ または MS Forms・Google Forms を入口にして回答を取り込み</td></tr>
-        <tr><td>申込・名簿のデータ</td><td>テーブル：利用者／申込／名簿明細／許可（＋宿泊）のリレーション</td></tr>
-        <tr><td>必要様式・締切の自動判定</td><td>計算フィールド＋条件付き表示（Formsの場合は分岐＋事後チェック）</td></tr>
-        <tr><td>月次自動集計・Word出力</td><td>集計→Wordテンプレート差し込み（サンプルdocx作成済み）</td></tr>
-        <tr><td>リスク事項の閲覧制限</td><td>アカウント権限でフィールド単位のアクセス制御</td></tr>
-      </tbody>
-    </table>
-    </div>
-    <div class="warn-note">個人情報（氏名・健康リスク事項）の保存場所・権限設計・保持期間は、着手前に事務方針を確認する（ヒアリング項目）。</div>
+  <div class="acc">⊕ 実装の選択肢</div>
+  <div class="tblwrap">
+  <table>
+    <thead><tr><th>この試作の要素</th><th>実装の選択肢</th></tr></thead>
+    <tbody>
+      <tr><td>申込フォーム</td><td>Google フォーム（ECCS＝学内Googleテナント）／ Google Apps Script のWebアプリ（この画面をほぼそのまま使える）／ FileMaker WebDirect</td></tr>
+      <tr><td>データベース</td><td>Google スプレッドシート ／ FileMaker（利用者・申込・名簿明細・許可のリレーション）</td></tr>
+      <tr><td>自動返信・指導教員CC・締切判定</td><td>Google Apps Script ／ FileMakerスクリプト</td></tr>
+      <tr><td>月次集計・Word出力</td><td>集計→Wordテンプレート差し込み（サンプルdocx作成済み）</td></tr>
+      <tr><td>リスク事項の閲覧制限</td><td>アカウント権限でフィールド単位のアクセス制御</td></tr>
+    </tbody>
+  </table>
   </div>
+  <p class="note-red">※個人情報（氏名・健康リスク事項）の保存場所・権限設計・保持期間は、着手前に事務方針の確認が必要（ヒアリング項目）。</p>
 </section>
 
-<footer>演習林利用申込システム デモ v1 ｜ 北海道演習林 利用案内（2026-08-13時点）準拠 ｜ ブラウザ内のみで動作（データはどこにも送信されません）｜ 平山翔湧</footer>
-</main>
+  <!-- ==== 申請ガイドボット（試作＝ルールベース／本実装では生成AIに接続） ==== -->
+  <button id="botBtn" onclick="botToggle()">💬 申請ガイド</button>
+  <div id="botPanel" class="hide">
+    <div id="botHead">申請ガイドボット（試作）
+      <small>この試作はルールベースの応答です。本実装では生成AI（Claude API・学内サーバ経由）に接続し、利用案内・規則の全文を根拠に回答します。</small>
+    </div>
+    <div id="botLog"></div>
+    <div id="botQuick">
+      <button onclick="botAsk('締切はいつ？')">締切は？</button>
+      <button onclick="botAsk('宿泊の料金は？')">宿泊料金</button>
+      <button onclick="botAsk('ドローンを飛ばしたい')">ドローン</button>
+      <button onclick="botAsk('下見だけしたい')">下見だけ</button>
+      <button onclick="botAsk('必要な様式は？')">必要様式</button>
+    </div>
+    <div id="botInput">
+      <input type="text" id="botText" placeholder="質問を入力…" onkeydown="if(event.key==='Enter')botSend()">
+      <button onclick="botSend()">送信</button>
+    </div>
+  </div>
+
+  <div class="sitefoot">
+    〒079-1563　北海道富良野市山部東町9番61号<br>
+    TEL：0167-42-2111　FAX：0167-42-2689　E-mail：hokuen（アットマーク）uf.a.u-tokyo.ac.jp<br>
+    <span style="font-size:11px">オンライン利用申込（試作 v1.1・2026-08-13・平山翔湧作成）｜ 本画面はブラウザ内のみで動作し、データはどこにも送信されません</span>
+  </div>
+</div>
 
 <script>
 let members = [
@@ -298,8 +376,7 @@ let apps = [
      {sex:'男',pos:'教職員'},{sex:'男',pos:'大学院生'},{sex:'女',pos:'大学院生'}]},
 ];
 
-// 施設使用料（円/人・泊）利用案内の料金表（2024-04-01改定）より
-// 区分: 本学学生等 / 本学教職員 / 他大学等学生等 / 他大学等教職員 / その他 / 義務教育修了前
+// 施設使用料（円/人・泊）2024-04-01改定の料金表より
 const FEES = {
   yamabe:  {stu:0, staff:1300, ostu:700, ostaff:2500, other:3700, child:0},
   seminar: {stu:0, staff:2500, ostu:700, ostaff:3700, other:4900, child:0},
@@ -308,8 +385,8 @@ const FEES = {
 const POS2FEE = {'教職員':'staff', '大学院生':'stu', '学部学生':'stu', '高校生':'ostu', 'その他':'other'};
 
 function tab(i, btn){
-  document.querySelectorAll('main > section').forEach((s,k)=>s.classList.toggle('hide', k!==i));
-  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('section').forEach((s,k)=>s.classList.toggle('hide', k!==i));
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   if(i===1) renderApps();
   if(i===2) renderReport();
@@ -322,27 +399,32 @@ function requiredForms(){
   let notes = [];
   if(kind==='res1') forms.push('A1（研究計画書）');
   if(kind==='edu1') forms.push('A2（教育計画書）');
-  if(kind==='visit') notes.push('下見のみ＝計画書不要（様式Bのみ）');
-  if(kind!=='dataonly') forms.push('B（利用申込書）','C（利用者名簿・宿泊申込）');
-  else notes.push('来訪なし＝様式B・Cは不要');
-  if(on.includes('D')) forms.push('D（データ利用申請書）※計画書と同時提出');
-  if(on.includes('E')) forms.push('E（標本・試料利用申請書）※計画書と同時提出');
-  if(on.includes('F')) forms.push('F（無人航空機確認書）※計画書と同時＋利用の都度。特定飛行は許可証の写しを添付');
+  if(kind==='visit') notes.push('事前の打ち合わせ・下見のみ＝利用計画書は不要（様式Bのみ）');
+  if(kind!=='dataonly') forms.push('B（利用申込書）','C（利用者名簿_宿泊申込）');
+  else notes.push('データ・標本利用のみで来訪なし＝様式B・Cは不要');
+  if(on.includes('D')) forms.push('D（データ利用申請書）※計画書とともに提出');
+  if(on.includes('E')) forms.push('E（標本・試料利用申請書）※計画書とともに提出');
+  if(on.includes('F')) forms.push('F（無人航空機確認書）※計画書とともに＋利用の都度。特定飛行は許可証の写しを添付');
   if(on.includes('G')) forms.push('G（野生動物調査確認票）※捕獲する場合は捕獲許可証等の写しを添付');
-  if(on.includes('H')) forms.push('H（化学物質・生物等持込み確認書）※利用申込書と同時＋利用の都度');
+  if(on.includes('H')) forms.push('H（化学物質・生物等持込み確認書）※利用申込書とともに＋利用の都度');
   return {forms, notes, stay:on.includes('stay')};
 }
 
 function judge(){
   const {forms, notes, stay} = requiredForms();
   document.getElementById('stayBox').classList.toggle('hide', !stay);
-  let html = '→ 必要書類の自動判定：<b>様式' + forms.join('＋様式').replace(/様式([A-H])（/g,'$1（') + '</b>';
+  let html = '→ 必要書類の自動判定：<b>〔様式' + forms.join('〕＋〔様式').replace(/（[^）]*）(＋|$)/g, '〕$1〔様式').slice(0,-4) + '</b>';
+  // シンプルに再構成
+  html = '→ 必要書類の自動判定：' + forms.map(f=>'<span class="form-name">〔様式'+f.replace('（','〕').replace(/）.*/,'')+'</span>').join('');
+  html = '→ 必要書類の自動判定：<b>' + forms.map(f=>{
+    const m = f.match(/^([A-H0-9]+)（([^）]+)）(.*)$/);
+    return m ? `<span class="form-name">〔様式${m[1]}〕${m[2]}</span>${m[3]?'<span style="font-size:11px">'+m[3]+'</span>':''}` : f;
+  }).join('　') + '</b>';
   if(notes.length) html += '<br>※ ' + notes.join('／');
-  // セミナーハウスは5〜10月のみ
   if(stay){
     const fac = document.getElementById('f_facility').value;
     const m = parseInt((document.getElementById('f_from').value||'2026-10-05').slice(5,7));
-    if(fac==='seminar' && (m<5 || m>10)) html += '<br>⚠ セミナーハウスは5〜10月のみ利用可です。山部宿泊施設を選択してください。';
+    if(fac==='seminar' && (m<5 || m>10)) html += '<br><span class="note-red">⚠ セミナーハウスは5〜10月の期間のみです。山部宿泊施設を選択してください。</span>';
     calcFee();
   }
   document.getElementById('judgeOut').innerHTML = html;
@@ -357,7 +439,7 @@ function calcFee(){
   members.forEach(m=>{ total += (FEES[fac][POS2FEE[m.pos] || 'other'] || 0) * nights; });
   document.getElementById('feeOut').innerHTML =
     `${members.length}名 × ${nights}泊 ＝ 施設使用料 <b>${total.toLocaleString()}円</b><br>` +
-    `<span style="font-size:11px">※ 本学学生は免除。食費・洗濯費・雑費・暖房費（10/1〜4/30）は別途 — 実装では全て自動計算</span>`;
+    `<span style="font-size:11px">※ 本学の学生・院生等は施設使用料免除（料金表2024年4月改定より）。食費・洗濯費・雑費・暖房費（10/1〜4/30）は別途 — 実装では全て自動計算</span>`;
 }
 
 function addMember(){ members.push({name:'', sex:'男', aff:'', pos:'学部学生', risk:''}); renderRoster(); }
@@ -374,7 +456,7 @@ function renderRoster(){
       <button class="del" onclick="delMember(${i})" aria-label="削除">✕</button>
     </div>`).join('');
   document.getElementById('soloWarn').innerHTML = (members.length===1)
-    ? '<div class="warn-note" style="margin-bottom:0">⚠ 利用者が1名です。<b>単独および夜間の入林は原則として認められません</b>（利用案内より）。同行者の追加をご検討ください。</div>' : '';
+    ? '<div class="warn">⚠ 利用者が1名です。安全管理上、<b>単独および夜間の入林は原則として認められません</b>（利用案内より）。同行者の追加をご検討ください。</div>' : '';
   judge();
 }
 
@@ -384,29 +466,27 @@ function submitApp(){
   const today = new Date();
   const out = document.getElementById('submitOut');
   let warns = [];
-  // 計画書（A1/A2）＝利用開始日の前月20日まで
   if(kind==='res1' || kind==='edu1'){
     const deadline = new Date(from.getFullYear(), from.getMonth()-1, 20);
     if(today > deadline){
-      warns.push(`計画書（${kind==='res1'?'A1':'A2'}）の提出締切は<b>利用開始月の前月20日（${deadline.getFullYear()}年${deadline.getMonth()+1}月20日）</b>でした。日程の再検討または演習林事務室への相談が必要です。`);
+      warns.push(`計画書（${kind==='res1'?'様式A1':'様式A2'}）の提出締切は<b>利用の開始を希望する日の前月の20日（${deadline.getFullYear()}年${deadline.getMonth()+1}月20日）</b>まででした。日程の再検討または演習林事務室（総務チーム）への相談が必要です。`);
     }
   }
-  // 利用申込書（B）＝10日前まで
   if(kind!=='dataonly'){
     const days = Math.floor((from - today)/86400000);
-    if(days < 10) warns.push(`利用開始日まで${days}日です。様式Bは<b>利用希望日の10日前まで</b>の提出が必要です。`);
+    if(days < 10) warns.push(`利用開始日まで${days}日です。〔様式B〕は<b>利用希望日の10日前まで</b>の提出が必要です。`);
   }
   if(warns.length){
-    out.innerHTML = `<div class="warn-note">⚠ ${warns.join('<br>⚠ ')}<br><span style="font-size:11px">※ 現状はこの締切確認も利用者任せ → システムが送信前に自動チェック</span></div>`;
+    out.innerHTML = `<div class="warn">⚠ ${warns.join('<br>⚠ ')}<br><span style="font-size:11px">※ 現状はこの締切確認も利用者任せ → システムが送信前に自動チェックします</span></div>`;
     return;
   }
   const {forms} = requiredForms();
-  const short = forms.map(f=>f[0]).join('・');
+  const short = forms.map(f=>f.match(/^[A-H0-9]+/)[0]).join('・');
   apps.push({date: today.toISOString().slice(0,10), no:'（受理待ち）', rep:document.getElementById('f_name').value,
     title:document.getElementById('f_title').value, from:document.getElementById('f_from').value, to:document.getElementById('f_to').value,
     n:members.length, forms:short, state:'新着',
     members:members.map(m=>({sex:m.sex, pos:m.pos}))});
-  out.innerHTML = `<div class="note">✅ 申込を送信しました（締切ルール：クリア／必要様式：${short} を自動添付／指導教員へ自動CC）。「② 職員：申込一覧」タブに反映されています。</div>`;
+  out.innerHTML = `<div class="judge">✅ 申込を送信しました（締切ルール：クリア／必要様式：${short} を自動生成／指導教員へ自動CC）。「② 職員：申込一覧」タブに反映されています。</div>`;
 }
 
 function renderApps(){
@@ -415,16 +495,16 @@ function renderApps(){
     <tr>
       <td>${a.date}</td><td>${a.no}</td><td>${a.rep}</td><td>${a.title}</td>
       <td>${a.from}〜${a.to.slice(5)}</td><td class="num">${a.n}</td>
-      <td><span class="tag b">${a.forms}</span></td>
-      <td>${a.state==='受理済' ? '<span class="tag g">受理済</span>' : '<span class="tag y">新着</span>'}</td>
-      <td>${a.state==='受理済' ? '' : `<button class="btn sec" style="padding:3px 12px;font-size:12px" onclick="accept(${i})">受理・許可証発行</button>`}</td>
+      <td>${a.forms}</td>
+      <td>${a.state==='受理済' ? '受理済' : '<span class="note-red">新着</span>'}</td>
+      <td>${a.state==='受理済' ? '' : `<button class="btn sec" onclick="accept(${i})">受理・許可証発行</button>`}</td>
     </tr>`).join('');
 }
 function accept(i){
   apps[i].state = '受理済';
   apps[i].no = '北演-2026-0' + (43+i);
   renderApps();
-  alert('デモ：受理と同時に利用許可証（許可番号つき）の通知メールが利用代表者と指導教員へ自動送信される想定です');
+  alert('デモ：受理と同時に「利用許可証」（許可番号つき）の通知メールが利用代表者と指導教員へ自動送信される想定です');
 }
 
 function renderReport(){
@@ -449,8 +529,59 @@ function renderReport(){
   document.getElementById('repTable').innerHTML = `
     <table><thead><tr><th>身分</th><th class="num">男（人日）</th><th class="num">女（人日）</th><th class="num">計</th></tr></thead>
     <tbody>${POS.map(p=>`<tr><td>${p}</td><td class="num">${rows[p].男}</td><td class="num">${rows[p].女}</td><td class="num">${rows[p].男+rows[p].女}</td></tr>`).join('')}
-    <tr style="font-weight:700; background:var(--green-l)"><td>合計</td><td class="num">${POS.reduce((s,p)=>s+rows[p].男,0)}</td><td class="num">${POS.reduce((s,p)=>s+rows[p].女,0)}</td><td class="num">${totalPD}</td></tr></tbody></table>
-    <p style="font-size:11.5px; color:var(--gray); margin-top:6px">※ 様式Cの名簿明細（性別・身分）と利用期間から自動算出。集計定義（人日 or 実人数）はヒアリングで確認。</p>`;
+    <tr style="font-weight:700; background:#f0f0f0"><td>合計</td><td class="num">${POS.reduce((s,p)=>s+rows[p].男,0)}</td><td class="num">${POS.reduce((s,p)=>s+rows[p].女,0)}</td><td class="num">${totalPD}</td></tr></tbody></table>
+    <p class="aside" style="margin-top:6px">※ 〔様式C〕の名簿明細（性別・身分）と利用期間から自動算出。集計定義（人日 or 実人数）はヒアリングで確認。</p>`;
+}
+
+// ---------------- 申請ガイドボット（ルールベース試作） ----------------
+const BOT_RULES = [
+  [/締切|期限|いつまで|何日前/, '提出締切は2段階です。<br>①計画書（〔様式A1〕研究／〔様式A2〕教育）＝<b>利用の開始を希望する日の前月の20日まで</b><br>②〔様式B〕利用申込書・〔様式C〕名簿＝<b>利用希望日の10日前まで</b><br>このフォームは送信時に両方を自動チェックします。'],
+  [/宿泊|泊ま|料金|いくら|セミナーハウス|山部/, '宿泊施設は2つです。<br>▪山部宿泊施設（食事なし・自炊可・定員12名）<br>▪セミナーハウス（食事あり・定員32名・<b>5〜10月のみ</b>）<br>施設使用料は本学の学生・院生等は<b>免除</b>、本学教職員は山部1,300円／セミナーハウス2,500円（1人1泊）など。STEP 3で宿泊を選ぶと名簿から自動見積されます。食費・雑費・暖房費（10/1〜4/30）は別途です。'],
+  [/ドローン|無人航空機|UAV|飛行/, '無人航空機を飛行させる場合は<b>〔様式F〕確認書</b>が必要です（計画書とともに＋<b>利用の都度</b>提出）。特定飛行を行う場合は飛行許可承認手続き許可証の写しも添付してください。'],
+  [/動物|捕獲|鳥|ネズミ|野鼠|昆虫|魚/, '脊椎動物を対象とする調査は<b>〔様式G〕野生動物調査確認票</b>が必要です。捕獲する場合は捕獲許可証等の写しも添付してください（昆虫等の無脊椎動物は対象外です）。'],
+  [/化学|農薬|薬品|持ち?込|ガス|放射/, '化学物質・生物等の持ち込みがある場合は<b>〔様式H〕持込み確認書</b>が必要です（利用申込書とともに＋<b>利用の都度</b>提出）。生物の持込みは逸出・拡散リスクと対策の説明が必須で、必ず申込時にご相談ください。'],
+  [/データ/, '演習林所有データの利用は<b>〔様式D〕データ利用申請書</b>を計画書とともに提出してください。データ利用のみで来訪しない場合、様式B・Cは不要です。'],
+  [/標本|試料|種子|苗木/, '標本・試料（種子・苗木を含む）の提供・利用は<b>〔様式E〕標本・試料利用申請書</b>を計画書とともに提出してください。'],
+  [/下見|打ち?合わせ/, '事前の打ち合わせ・下見のみの場合、<b>利用計画書は不要</b>です。〔様式B〕利用申込書のみ提出してください（10日前まで）。'],
+  [/単独|夜間|一人|1人/, '安全管理上、<b>単独および夜間の入林は原則として認められません</b>。名簿が1名の場合、このフォームは警告を表示します。'],
+  [/CC|指導教員|学生/, '学生・大学院生・ポスドクの場合は提出時に<b>指導教員へのCC（同報）が必要</b>です。このシステムではSTEP 1に指導教員のメールを入れると自動でCCされます。'],
+  [/成果|論文|公表|別刷/, '成果を公表した際は別刷・要旨等を提出し、<b>成果物に当演習林を利用した旨を必ず明記</b>してください。利用後2年間は毎年1〜2月に利用報告の依頼メールが届きます（→本実装ではシステムが自動督促する構想です）。'],
+  [/発表会/, '毎年5〜6月に<b>利用者発表会</b>があり、注意事項等の説明がありますので可能な限り参加し、計画や結果の説明をお願いします。'],
+  [/様式|必要|書類|何を出/, 'STEP 2で利用の種類、STEP 3で該当事項を選ぶと、<b>必要な様式（A1〜H）を自動判定</b>して画面に表示します。まずはフォームを埋めてみてください。'],
+  [/問い?合わせ|連絡|電話|メール/, '提出・問合せは<b>北海道演習林事務室（総務チーム）</b>まで。<br>TEL 0167-42-2111／FAX 0167-42-2689<br>E-mail hokuen（アットマーク）uf.a.u-tokyo.ac.jp'],
+];
+
+function botToggle(){
+  const p = document.getElementById('botPanel');
+  p.classList.toggle('hide');
+  if(!p.classList.contains('hide') && !document.getElementById('botLog').childElementCount){
+    botReply('こんにちは。北海道演習林の利用申請についてご案内します。下のボタンを押すか、質問を入力してください。');
+  }
+}
+function botAsk(q){ botUser(q); setTimeout(()=>botAnswer(q), 300); }
+function botSend(){
+  const el = document.getElementById('botText');
+  const q = el.value.trim();
+  if(!q) return;
+  el.value = '';
+  botAsk(q);
+}
+function botAnswer(q){
+  for(const [re, ans] of BOT_RULES){
+    if(re.test(q)){ botReply(ans); return; }
+  }
+  botReply('うまくお答えできませんでした。お手数ですが北海道演習林事務室（総務チーム・TEL 0167-42-2111）へお問い合わせください。<br><span style="font-size:10.5px;color:#666">※本実装では生成AI（Claude API）に接続し、利用案内・規則の全文を根拠にした回答に置き換わります。</span>');
+}
+function botUser(t){
+  const log = document.getElementById('botLog');
+  log.insertAdjacentHTML('beforeend', `<div class="bmsg user"><span></span></div>`);
+  log.lastElementChild.querySelector('span').textContent = t;
+  log.scrollTop = log.scrollHeight;
+}
+function botReply(html){
+  const log = document.getElementById('botLog');
+  log.insertAdjacentHTML('beforeend', `<div class="bmsg bot"><span>${html}</span></div>`);
+  log.scrollTop = log.scrollHeight;
 }
 
 renderRoster();
