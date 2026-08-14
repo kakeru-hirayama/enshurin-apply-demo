@@ -69,7 +69,7 @@
   th,td{border:1px solid #999; padding:5px 8px; text-align:left;}
   th{background:#f0f0f0; font-weight:700;}
   td.num,th.num{text-align:right; font-variant-numeric:tabular-nums;}
-  .roster-row{display:grid; grid-template-columns:1.2fr .6fr 1.4fr .9fr 1.4fr 30px; gap:5px; margin-bottom:5px; align-items:center;}
+  .roster-row{display:grid; grid-template-columns:1.1fr .9fr .5fr .9fr 1.2fr .8fr 1.2fr 1.2fr .55fr .95fr 26px; gap:4px; margin-bottom:5px; align-items:center;}
   .roster-row input,.roster-row select{padding:5px 7px; font-size:12.5px;}
   .roster-head{font-size:11px; color:#666;}
   .del{border:none; background:none; color:#cc0000; font-size:15px; cursor:pointer;}
@@ -172,8 +172,18 @@
         <option>北海道演習林</option><option>千葉演習林</option><option>秩父演習林</option>
         <option>田無演習林</option><option>生態水文学研究所</option><option>富士癒しの森研究所</option><option>樹芸研究所</option>
       </select></div>
+    <div class="field" style="margin-top:6px"><label>他の演習林も同時に利用する場合（複数選択可）</label>
+      <div class="chips" id="f_forests_extra">
+        <span class="chip" onclick="this.classList.toggle('on');judge()">千葉演習林</span>
+        <span class="chip" onclick="this.classList.toggle('on');judge()">秩父演習林</span>
+        <span class="chip" onclick="this.classList.toggle('on');judge()">田無演習林</span>
+        <span class="chip" onclick="this.classList.toggle('on');judge()">生態水文学研究所</span>
+        <span class="chip" onclick="this.classList.toggle('on');judge()">富士癒しの森研究所</span>
+        <span class="chip" onclick="this.classList.toggle('on');judge()">樹芸研究所</span>
+      </div></div>
     <div id="forestNote"></div>
-    <p class="aside">※ 施設によって様式・締切・宿泊施設・料金が異なるため、<b>最初に施設を選ぶとフォーム全体がその施設仕様に切り替わる</b>設計。実装では施設マスタで制御（この試作は北海道演習林のみ実装）。</p>
+    <p class="aside">※ 施設によって様式・締切・宿泊施設・料金が異なるため、<b>最初に施設を選ぶとフォーム全体がその施設仕様に切り替わる</b>設計。
+    複数施設を選んだ場合は、<b>同じ入力内容から施設ごとの様式一式を自動生成し、それぞれの施設へ提出</b>します（計画書・許可証は施設ごとに発行）。実装では施設マスタで制御（この試作は北海道演習林のみ実装）。</p>
   </div>
 
   <h2 class="step">Step 2　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用代表者の情報（各様式 共通ヘッダ）</span></h2>
@@ -243,13 +253,21 @@
 
   <h2 class="step">Step 5　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用者名簿（〔様式C〕利用者名簿_宿泊申込 に対応）</span></h2>
   <div class="box">
+    <div class="tblwrap" style="overflow-x:auto">
+    <div style="min-width:1050px">
     <div class="roster-row roster-head">
-      <span>氏名</span><span>性別</span><span>所属</span><span>身分</span><span>リスク事項（ハチ・食物アレルギー・既往症等）</span><span></span>
+      <span>氏名</span><span>ふりがな</span><span>性別</span><span>生年月日</span><span>所属</span><span>身分</span><span>リスク事項（アレルギー等）</span><span>緊急連絡先 氏名（ふりがな）</span><span>続柄</span><span>電話</span><span></span>
     </div>
     <div id="roster"></div>
+    </div>
+    </div>
     <button class="btn sec" onclick="addMember()">＋ 利用者を追加</button>
-    <p class="aside">※ 人数内訳（教職員/院生/学部生…×男女）は名簿から自動集計されます。リスク事項は閲覧権限を現地担当者のみに制限する想定。
-    利用者が未確定・変更の場合は、確定後にこの画面から追記してください（自動で差分提出）。</p>
+    <p class="aside">※ 人数内訳（教職員/院生/学部生…×男女）は名簿から自動集計されます。利用者が未確定・変更の場合は、確定後にこの画面から追記してください（自動で差分提出）。</p>
+    <div class="judge" style="margin-top:8px"><b>個人情報の取り扱い（本実装での設計方針）</b><br>
+    ・利用日前に全利用者分の収集漏れがないことをシステムが確認し、未提出があれば自動で督促します<br>
+    ・緊急連絡先・リスク事項は<b>各演習林の担当者のみ閲覧可</b>（利用代表者を含む第三者には表示されません）<br>
+    ・緊急時には担当者が迷わず参照できる専用画面を用意します<br>
+    ・登録情報は<b>年1回の登録で全演習林共通</b>で利用でき、定めた期間で<b>自動的に削除</b>されます</div>
     <div id="soloWarn"></div>
   </div>
 
@@ -302,6 +320,8 @@
   <br>
   <button class="btn sec" onclick="downloadWordReport()">📄 Word報告書をダウンロード（.doc）</button>
   <button class="btn sec" onclick="printReport()">🖨 印刷 / PDF保存</button>
+  <button class="btn sec" onclick="printNenpo()">📋 年報用 利用者一覧を出力（仮様式）</button>
+  <p class="aside" style="margin-top:6px">※ 年報用一覧は仮の様式です。内部向けの正式フォーマットを入手後、同じデータからその様式で出力するよう差し替えます。</p>
 </section>
 
 <!-- ============ TAB 3 ============ -->
@@ -385,14 +405,16 @@
   <div class="sitefoot">
     〒079-1563　北海道富良野市山部東町9番61号<br>
     TEL：0167-42-2111　FAX：0167-42-2689　E-mail：hokuen（アットマーク）uf.a.u-tokyo.ac.jp<br>
-    <span style="font-size:11px">オンライン利用申込（試作 v1.1・2026-08-13・平山翔湧作成）｜ 本画面はブラウザ内のみで動作し、データはどこにも送信されません</span>
+    <span style="font-size:11px">オンライン利用申込（試作 v1.6・2026-08-14更新・平山翔湧作成）｜ 本画面はブラウザ内のみで動作し、データはどこにも送信されません</span>
   </div>
 </div>
 
 <script>
 let members = [
-  {name:'平山 翔湧', sex:'男', aff:'東大-工 石川研', pos:'学部学生', risk:''},
-  {name:'佐藤 ○○', sex:'女', aff:'東大-農 徳永研', pos:'大学院生', risk:'ハチアレルギー'},
+  {name:'平山 翔湧', kana:'ひらやま かける', sex:'男', birth:'2004-08-15', aff:'東大-工 石川研', pos:'学部学生', risk:'',
+   em_name:'平山 ○○（ひらやま ○○）', em_rel:'母', em_tel:'090-XXXX-XXXX'},
+  {name:'佐藤 ○○', kana:'さとう ○○', sex:'女', birth:'2002-04-01', aff:'東大-農 徳永研', pos:'大学院生', risk:'ハチアレルギー',
+   em_name:'佐藤 ○○（さとう ○○）', em_rel:'父', em_tel:'080-XXXX-XXXX'},
 ];
 let apps = [
   {date:'2026-09-18', forest:'北海道演習林', no:'北演-2026-041', rep:'徳永 友花', title:'森林リモートセンシング実習', from:'2026-10-14', to:'2026-10-16',
@@ -476,17 +498,22 @@ function calcFee(){
     `<span style="font-size:11px">※ 本学の学生・院生等は施設使用料免除（料金表2024年4月改定より）。食費・洗濯費・雑費・暖房費（10/1〜4/30）は別途 — 実装では全て自動計算</span>`;
 }
 
-function addMember(){ members.push({name:'', sex:'男', aff:'', pos:'学部学生', risk:''}); renderRoster(); }
+function addMember(){ members.push({name:'', kana:'', sex:'男', birth:'', aff:'', pos:'学部学生', risk:'', em_name:'', em_rel:'', em_tel:''}); renderRoster(); }
 function delMember(i){ members.splice(i,1); renderRoster(); }
 function renderRoster(){
   const el = document.getElementById('roster');
   el.innerHTML = members.map((m,i)=>`
     <div class="roster-row">
       <input type="text" value="${m.name}" onchange="members[${i}].name=this.value">
+      <input type="text" value="${m.kana||''}" placeholder="ふりがな" onchange="members[${i}].kana=this.value">
       <select onchange="members[${i}].sex=this.value"><option${m.sex==='男'?' selected':''}>男</option><option${m.sex==='女'?' selected':''}>女</option></select>
+      <input type="date" value="${m.birth||''}" onchange="members[${i}].birth=this.value">
       <input type="text" value="${m.aff}" onchange="members[${i}].aff=this.value">
       <select onchange="members[${i}].pos=this.value;judge()">${['教職員','大学院生','学部学生','高校生','その他'].map(p=>`<option${m.pos===p?' selected':''}>${p}</option>`).join('')}</select>
       <input type="text" value="${m.risk}" placeholder="なし" onchange="members[${i}].risk=this.value">
+      <input type="text" value="${m.em_name||''}" placeholder="例）山田 花子（やまだ はなこ）" onchange="members[${i}].em_name=this.value">
+      <input type="text" value="${m.em_rel||''}" placeholder="母" onchange="members[${i}].em_rel=this.value">
+      <input type="text" value="${m.em_tel||''}" placeholder="090-…" onchange="members[${i}].em_tel=this.value">
       <button class="del" onclick="delMember(${i})" aria-label="削除">✕</button>
     </div>`).join('');
   document.getElementById('soloWarn').innerHTML = (members.length===1)
@@ -669,7 +696,7 @@ function showConfirm(){
     <div class="box" style="border-width:2px">
       <b>―― 申込内容の確認 ――</b>
       <div class="tblwrap"><table>
-        <tr><th style="width:32%">利用する演習林</th><td>${v('f_forest')}</td></tr>
+        <tr><th style="width:32%">利用する演習林</th><td>${v('f_forest')}${(()=>{const ex=[...document.querySelectorAll('#f_forests_extra .chip.on')].map(c=>c.textContent);return ex.length?'　＋同時申込：'+ex.join('・'):''})()}</td></tr>
         <tr><th>利用代表者</th><td>${v('f_name')}（${v('f_aff')}）</td></tr>
         <tr><th>連絡先</th><td>${v('f_mail')} ／ ${v('f_tel')}</td></tr>
         <tr><th>指導教員（自動CC）</th><td>${v('f_prof')}　${v('f_profmail')}</td></tr>
@@ -747,6 +774,29 @@ function downloadWordReport(){
 function printReport(){
   const w = window.open('', '_blank');
   w.document.write(`<html><head><meta charset="utf-8"><title>利用状況報告（印刷用）</title></head><body>${reportHTML()}<script>window.onload=()=>window.print();<\/script></body></html>`);
+  w.document.close();
+}
+
+function printNenpo(){
+  const month = document.getElementById('repMonth').value;
+  const forest = document.getElementById('repForest').value;
+  let rows = '';
+  apps.filter(a=>a.state==='受理済' && (a.forest||'北海道演習林')===forest && a.from.slice(0,7)===month).forEach(a=>{
+    a.members.forEach((m,i)=>{
+      rows += `<tr><td>${a.no}</td><td>${a.title}</td><td>${a.rep}</td><td>${a.from}〜${a.to}</td><td>${i+1}</td><td>${m.pos}</td><td>${m.sex}</td></tr>`;
+    });
+  });
+  const html = `
+  <div style="font-family:'MS Mincho','ＭＳ 明朝',serif; color:#000; max-width:180mm; margin:0 auto; font-size:10pt; line-height:1.7">
+    <p style="text-align:center; font-size:13pt; font-weight:bold">${forest}　利用者一覧（年報用・仮様式）　${month.slice(0,4)}年${parseInt(month.slice(5,7))}月</p>
+    <table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse; width:100%">
+      <tr><td><b>許可番号</b></td><td><b>課題名等</b></td><td><b>利用代表者</b></td><td><b>利用期間</b></td><td><b>No.</b></td><td><b>身分</b></td><td><b>性別</b></td></tr>
+      ${rows || '<tr><td colspan="7">該当データなし</td></tr>'}
+    </table>
+    <p style="font-size:9pt; color:#555">※ 本一覧は仮様式のサンプルです（氏名等の個人情報は年報出力には含めない想定。含める場合は担当者権限でのみ出力可能とします）。正式な内部フォーマット入手後に差し替えます。</p>
+  </div>`;
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><meta charset="utf-8"><title>年報用 利用者一覧（仮）</title></head><body>${html}<script>window.onload=()=>window.print();<\/script></body></html>`);
   w.document.close();
 }
 
