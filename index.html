@@ -264,6 +264,8 @@
     <button class="btn sec" onclick="addMember()">＋ 利用者を追加</button>
     <p class="aside">※ 人数内訳（教職員/院生/学部生…×男女）は名簿から自動集計されます。利用者が未確定・変更の場合は、確定後にこの画面から追記してください（自動で差分提出）。</p>
     <div class="judge" style="margin-top:8px"><b>個人情報の取り扱い（本実装での設計方針）</b><br>
+    ・実装では、利用代表者は<b>各利用者のメールアドレスを登録するだけ</b>。各利用者本人に入力用URLが届き、
+    <b>本人が自分の情報を直接登録</b>します（代表者は他人の個人情報に触れません）<br>
     ・利用日前に全利用者分の収集漏れがないことをシステムが確認し、未提出があれば自動で督促します<br>
     ・緊急連絡先・リスク事項は<b>各演習林の担当者のみ閲覧可</b>（利用代表者を含む第三者には表示されません）<br>
     ・緊急時には担当者が迷わず参照できる専用画面を用意します<br>
@@ -293,6 +295,10 @@
 <!-- ============ TAB 1 ============ -->
 <section id="tab1" class="hide">
   <div class="acc">⊕ 申込一覧（職員用・北海道演習林事務室 総務チーム）</div>
+  <p style="margin:6px 0 10px">
+    <button class="btn" style="background:#b71c1c; border-color:#8e0000" onclick="printEmergency()">🚨 緊急連絡先を開く（担当者専用）</button>
+    <span class="aside">　※緊急時に迷わず開ける専用ビューの例。実装では担当者アカウントのみ表示され、閲覧は記録されます</span>
+  </p>
   <p class="aside">申込はこの一覧に自動で入ります。受理→「利用許可証」（許可番号）の発行もここで完結し、利用者と指導教員に通知メールが送られる想定です。</p>
   <div class="tblwrap">
   <table id="appTable">
@@ -797,6 +803,36 @@ function printNenpo(){
   </div>`;
   const w = window.open('', '_blank');
   w.document.write(`<html><head><meta charset="utf-8"><title>年報用 利用者一覧（仮）</title></head><body>${html}<script>window.onload=()=>window.print();<\/script></body></html>`);
+  w.document.close();
+}
+
+function printEmergency(){
+  const rows = members.map((m,i)=>`
+    <tr>
+      <td style="font-size:13pt">${i+1}</td>
+      <td style="font-size:13pt"><b>${m.name}</b><br><span style="font-size:9pt">${m.kana||''}</span></td>
+      <td>${m.birth||'—'}</td>
+      <td>${m.risk && m.risk!=='なし' ? '<b style="color:#b71c1c">'+m.risk+'</b>' : 'なし'}</td>
+      <td style="font-size:13pt"><b>${m.em_name||'—'}</b></td>
+      <td>${m.em_rel||'—'}</td>
+      <td style="font-size:14pt"><b>${m.em_tel||'—'}</b></td>
+    </tr>`).join('');
+  const html = `
+  <div style="font-family:Meiryo,sans-serif; color:#000; max-width:190mm; margin:0 auto; line-height:1.6">
+    <p style="background:#b71c1c; color:#fff; padding:8px 14px; font-size:14pt; font-weight:bold">
+      🚨 緊急連絡先一覧（担当者専用）</p>
+    <p style="font-size:11pt"><b>申込：森林GX/DXに関する現地調査（北演-2026-045）</b>　利用期間 2026年10月5日〜7日　利用代表者 平山 翔湧</p>
+    <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse; width:100%; font-size:10.5pt">
+      <tr style="background:#f5f5f5"><td><b>No.</b></td><td><b>利用者氏名</b></td><td><b>生年月日</b></td><td><b>リスク事項</b></td>
+      <td><b>緊急連絡先 氏名</b></td><td><b>続柄</b></td><td><b>電話</b></td></tr>
+      ${rows}
+    </table>
+    <p style="font-size:9pt; color:#555; margin-top:10px">
+      ※ サンプル画面です（データは架空）。設計方針：①緊急時に1クリックで到達 ②氏名と電話番号を最大サイズで表示
+      ③リスク事項（アレルギー等）を赤字強調 ④閲覧ログを自動記録 ⑤平時は担当者アカウント以外に表示されない</p>
+  </div>`;
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><meta charset="utf-8"><title>緊急連絡先（担当者専用・サンプル）</title></head><body>${html}</body></html>`);
   w.document.close();
 }
 
