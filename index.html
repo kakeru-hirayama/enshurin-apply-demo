@@ -128,6 +128,12 @@
   #botInput{display:flex; border-top:1px solid #ddd;}
   #botInput input{flex:1; border:none; padding:9px 10px; font-size:13px; font-family:inherit; outline:none;}
   #botInput button{border:none; background:#2e7d32; color:#fff; padding:0 16px; cursor:pointer; font-family:inherit;}
+  /* 送信中は操作できないことが見て分かるようにする */
+  #botInput input:disabled{background:#f2f2f2;}
+  #botInput button:disabled{background:#9e9e9e; cursor:default;}
+  #botQuick button:disabled{opacity:.45; cursor:default;}
+  /* 送信方法の案内（入力欄は <input> なので改行はできない＝「Enterで送信」のみ） */
+  #botHint{background:#fff; color:#999; font-size:10.5px; line-height:1.5; padding:0 10px 7px;}
   #botHead .botctl{float:right; cursor:pointer; user-select:none; margin-left:11px; font-weight:700; line-height:1;}
   /* .hide はクラスのため #botPanel（IDセレクタ）に詳細度で負けていた＝ボタンが効かない原因 */
   #botPanel.hide{display:none;}
@@ -136,6 +142,7 @@
   #botPanel.mini #botHead small,
   #botPanel.mini #botLog,
   #botPanel.mini #botQuick,
+  #botPanel.mini #botHint,
   #botPanel.mini #botInput{display:none;}
 </style>
 </head>
@@ -424,11 +431,11 @@
   <p class="note-red">※個人情報（氏名・健康リスク事項）の保存場所・権限設計・保持期間は、着手前に事務方針の確認が必要（ヒアリング項目）。</p>
 </section>
 
-  <!-- ==== 申請ガイドボット（試作＝ルールベース／本実装では生成AIに接続） ==== -->
+  <!-- ==== 申請ガイドボット（生成AI＝Claude API に接続。APIキーはGASプロキシ側で保持） ==== -->
   <button id="botBtn" onclick="botToggle()">💬 申請ガイド</button>
   <div id="botPanel" class="hide">
     <div id="botHead"><span class="botctl" onclick="botToggle()" title="閉じる">✕</span><span class="botctl" id="botMinBtn" onclick="botMin()" title="最小化">ー</span><span class="botctl" onclick="botSize()" title="大きく／普通">⤢</span>申請ガイドボット（試作）
-      <small>この試作はルールベースの応答です。本実装では生成AI（Claude API・学内サーバ経由）に接続し、利用案内・規則の全文を根拠に回答します。</small>
+      <small>生成AI（Claude API）に接続した試作です。回答は参考情報としてご覧ください。正式な取扱いは各演習林の利用案内・担当者にご確認ください。</small>
     </div>
     <div id="botLog"></div>
     <div id="botQuick">
@@ -440,14 +447,15 @@
     </div>
     <div id="botInput">
       <input type="text" id="botText" placeholder="質問を入力…" autocomplete="off">
-      <button onclick="botSend()">送信</button>
+      <button id="botSendBtn" onclick="botSend()">送信</button>
     </div>
+    <div id="botHint">Enterで送信</div>
   </div>
 
   <div class="sitefoot">
     〒079-1563　北海道富良野市山部東町9番61号<br>
     TEL：0167-42-2111　FAX：0167-42-2689　E-mail：hokuen（アットマーク）uf.a.u-tokyo.ac.jp<br>
-    <span style="font-size:11px">オンライン利用申込（試作 v1.8・2026-08-17更新・平山翔湧作成）｜ 本画面はブラウザ内のみで動作し、データはどこにも送信されません</span>
+    <span style="font-size:11px">オンライン利用申込（試作 v1.9・2026-08-17更新・平山翔湧作成）｜ 申込フォームの入力内容はブラウザ内でのみ扱い、どこにも送信されません（申請ガイドボットにご入力いただいた質問文のみ、回答を作るために送信されます）</span>
   </div>
 </div>
 
@@ -730,23 +738,19 @@ function renderReport(){
     <p class="aside" style="margin-top:6px">※ 〔様式C〕の名簿明細（性別・身分）と利用期間から自動算出。集計定義（人日 or 実人数）はヒアリングで確認。</p>`;
 }
 
-// ---------------- 申請ガイドボット（ルールベース試作） ----------------
-const BOT_RULES = [
-  [/締切|期限|いつまで|何日前/, '提出締切は2段階です。<br>①計画書（〔様式A1〕研究／〔様式A2〕教育）＝<b>利用の開始を希望する日の前月の20日まで</b><br>②〔様式B〕利用申込書・〔様式C〕名簿＝<b>利用希望日の10日前まで</b><br>このフォームは送信時に両方を自動チェックします。'],
-  [/宿泊|泊ま|料金|いくら|セミナーハウス|山部/, '宿泊施設は2つです。<br>▪山部宿泊施設（食事なし・自炊可・定員12名）<br>▪セミナーハウス（食事あり・定員32名・<b>5〜10月のみ</b>）<br>施設使用料は本学の学生・院生等は<b>免除</b>、本学教職員は山部1,300円／セミナーハウス2,500円（1人1泊）など。STEP 3で宿泊を選ぶと名簿から自動見積されます。食費・雑費・暖房費（10/1〜4/30）は別途です。'],
-  [/ドローン|無人航空機|UAV|飛行/, '無人航空機を飛行させる場合は<b>〔様式F〕確認書</b>が必要です（計画書とともに＋<b>利用の都度</b>提出）。特定飛行を行う場合は飛行許可承認手続き許可証の写しも添付してください。'],
-  [/動物|捕獲|鳥|ネズミ|野鼠|昆虫|魚/, '脊椎動物を対象とする調査は<b>〔様式G〕野生動物調査確認票</b>が必要です。捕獲する場合は捕獲許可証等の写しも添付してください（昆虫等の無脊椎動物は対象外です）。'],
-  [/化学|農薬|薬品|持ち?込|ガス|放射/, '化学物質・生物等の持ち込みがある場合は<b>〔様式H〕持込み確認書</b>が必要です（利用申込書とともに＋<b>利用の都度</b>提出）。生物の持込みは逸出・拡散リスクと対策の説明が必須で、必ず申込時にご相談ください。'],
-  [/データ/, '演習林所有データの利用は<b>〔様式D〕データ利用申請書</b>を計画書とともに提出してください。データ利用のみで来訪しない場合、様式B・Cは不要です。'],
-  [/標本|試料|種子|苗木/, '標本・試料（種子・苗木を含む）の提供・利用は<b>〔様式E〕標本・試料利用申請書</b>を計画書とともに提出してください。'],
-  [/下見|打ち?合わせ/, '事前の打ち合わせ・下見のみの場合、<b>利用計画書は不要</b>です。〔様式B〕利用申込書のみ提出してください（10日前まで）。'],
-  [/単独|夜間|一人|1人/, '安全管理上、<b>単独および夜間の入林は原則として認められません</b>。名簿が1名の場合、このフォームは警告を表示します。'],
-  [/CC|指導教員|学生/, '学生・大学院生・ポスドクの場合は提出時に<b>指導教員へのCC（同報）が必要</b>です。このシステムではSTEP 1に指導教員のメールを入れると自動でCCされます。'],
-  [/成果|論文|公表|別刷/, '成果を公表した際は別刷・要旨等を提出し、<b>成果物に当演習林を利用した旨を必ず明記</b>してください。利用後2年間は毎年1〜2月に利用報告の依頼メールが届きます（→本実装ではシステムが自動督促する構想です）。'],
-  [/発表会/, '毎年5〜6月に<b>利用者発表会</b>があり、注意事項等の説明がありますので可能な限り参加し、計画や結果の説明をお願いします。'],
-  [/様式|必要|書類|何を出/, 'STEP 2で利用の種類、STEP 3で該当事項を選ぶと、<b>必要な様式（A1〜H）を自動判定</b>して画面に表示します。まずはフォームを埋めてみてください。'],
-  [/問い?合わせ|連絡|電話|メール/, '提出・問合せは<b>北海道演習林事務室（総務チーム）</b>まで。<br>TEL 0167-42-2111／FAX 0167-42-2689<br>E-mail hokuen（アットマーク）uf.a.u-tokyo.ac.jp'],
-];
+// ---------------- 申請ガイドボット（生成AI＝Claude API に接続） ----------------
+// APIキーはこのページに置かない。Google Apps Script のプロキシを経由し、
+// キーはGAS側のスクリプトプロパティに保持する（下のURLは公開しても安全）。
+// GASは application/json を受け取るとCORSのプリフライトが飛んで処理できないため、
+// Content-Type は text/plain とする。また302を返すので redirect:'follow' が要る。
+const BOT_API_URL = 'https://script.google.com/macros/s/AKfycbzH3Op-bkb-JcEueYI1ZLE_dayxqNpJd9k96xKUWtHBUxsYUTt0hCoqXMvoCqkzfamP/exec';
+
+// セッションIDはページ読み込み時に一度だけ発行し、以降は使い回す（サーバ側の回数制限の単位）
+const BOT_SESSION_ID = 's' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+const BOT_HISTORY_TURNS = 10;   // 送り返す会話履歴の上限（往復数）
+let botHistory = [];            // [{role:'user'|'assistant', content:'...'}, ...]
+let botBusy = false;            // 回答待ちのあいだは次の送信を受け付けない
 
 let botComposing = false;   // 日本語入力（IME）で変換中かどうか
 
@@ -792,20 +796,87 @@ function initBotInput(){
   t.addEventListener('compositionend',   function(){ botComposing = false; });
   t.addEventListener('keydown', botKey);
 }
-function botAsk(q){ botUser(q); setTimeout(()=>botAnswer(q), 300); }
+// サジェストボタンからも入力欄からも、送信はここを通る
+function botAsk(q){
+  if(botBusy) return;
+  botUser(q);
+  botCall(q);
+}
 function botSend(){
   const el = document.getElementById('botText');
   const q = el.value.trim();
-  if(!q) return;
+  if(!q || botBusy) return;
   el.value = '';
   botAsk(q);
 }
-function botAnswer(q){
-  for(const [re, ans] of BOT_RULES){
-    if(re.test(q)){ botReply(ans); return; }
-  }
-  botReply('うまくお答えできませんでした。お手数ですが北海道演習林事務室（総務チーム・TEL 0167-42-2111）へお問い合わせください。<br><span style="font-size:10.5px;color:#666">※本実装では生成AI（Claude API）に接続し、利用案内・規則の全文を根拠にした回答に置き換わります。</span>');
+
+// 送信中は入力欄・送信ボタン・サジェストボタンを止める
+function botSetBusy(busy){
+  botBusy = busy;
+  const t = document.getElementById('botText');
+  const b = document.getElementById('botSendBtn');
+  if(t) t.disabled = busy;
+  if(b) b.disabled = busy;
+  document.querySelectorAll('#botQuick button').forEach(function(el){ el.disabled = busy; });
+  if(!busy && t) t.focus();
 }
+
+// 「回答を作成しています…」の仮メッセージを出す。返答が来たら中身を差し替える
+function botPending(){
+  const log = document.getElementById('botLog');
+  log.insertAdjacentHTML('beforeend', '<div class="bmsg bot"><span style="color:#777">回答を作成しています…</span></div>');
+  log.scrollTop = log.scrollHeight;
+  return log.lastElementChild;
+}
+function botFill(node, html){
+  const sp = node.querySelector('span');
+  sp.removeAttribute('style');
+  sp.innerHTML = html;
+  const log = document.getElementById('botLog');
+  log.scrollTop = log.scrollHeight;
+}
+
+// 応答は素のテキストとして扱う（HTMLとして解釈させない）
+function botEscape(t){
+  return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function botCall(q){
+  botSetBusy(true);
+  const pending = botPending();
+  try{
+    const res = await fetch(BOT_API_URL, {
+      method: 'POST',
+      // application/json にするとCORSのプリフライトが飛び、GASが応答できない
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      redirect: 'follow',   // GASは302で本体へ転送する
+      body: JSON.stringify({
+        sessionId: BOT_SESSION_ID,
+        message: q,
+        history: botHistory.slice(-BOT_HISTORY_TURNS * 2)
+      })
+    });
+    const data = await res.json();
+
+    if(data && data.reply){
+      botFill(pending, botEscape(data.reply).replace(/\n/g, '<br>'));
+      botHistory.push({role:'user', content:q}, {role:'assistant', content:data.reply});
+      botHistory = botHistory.slice(-BOT_HISTORY_TURNS * 2);
+    }else if(data && data.error){
+      // サーバ側の文言はそのまま出す（利用者向けの日本語になっている）
+      botFill(pending, botEscape(data.error));
+    }else{
+      botFill(pending, 'うまく回答を受け取れませんでした。お手数ですが、もう一度お試しください。');
+    }
+  }catch(err){
+    botFill(pending, '接続できませんでした。時間をおいてお試しください。');
+  }finally{
+    // 例外が出ても入力欄は必ず戻す
+    botSetBusy(false);
+  }
+}
+
 function botUser(t){
   const log = document.getElementById('botLog');
   log.insertAdjacentHTML('beforeend', `<div class="bmsg user"><span></span></div>`);
