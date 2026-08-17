@@ -49,7 +49,7 @@
 
   /* ---- フォーム部品（サイトの雰囲気を保った控えめな装飾） ---- */
   label{display:block; font-size:12px; color:#555; margin-bottom:1px;}
-  input[type=text],input[type=email],input[type=date],select,textarea{
+  input[type=text],input[type=email],input[type=date],input[type=number],select,textarea{
     width:100%; padding:6px 8px; border:1px solid #999; font-size:13.5px; font-family:inherit; background:#fff;}
   textarea{resize:vertical;}
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:8px 20px;}
@@ -69,10 +69,24 @@
   th,td{border:1px solid #999; padding:5px 8px; text-align:left;}
   th{background:#f0f0f0; font-weight:700;}
   td.num,th.num{text-align:right; font-variant-numeric:tabular-nums;}
-  .roster-row{display:grid; grid-template-columns:1.1fr .9fr .5fr .9fr 1.2fr .8fr 1.2fr 1.2fr .55fr .95fr 26px; gap:4px; margin-bottom:5px; align-items:center;}
-  .roster-row input,.roster-row select{padding:5px 7px; font-size:12.5px;}
-  .roster-head{font-size:11px; color:#666;}
-  .del{border:none; background:none; color:#cc0000; font-size:15px; cursor:pointer;}
+  /* ---- 利用者名簿：1名＝1ブロック（削除ボタンを常に右上に表示） ---- */
+  .mcard{border:1px solid #bbb; background:#fff; margin-bottom:10px;}
+  .mcard-h{display:flex; align-items:center; justify-content:space-between; gap:8px;
+           background:#f3f6f3; border-bottom:1px solid #ddd; padding:4px 10px; font-size:12.5px;}
+  .mgrid{display:grid; grid-template-columns:repeat(4,1fr); gap:6px 12px; padding:9px 10px;}
+  .mgrid .field{margin-bottom:0;}
+  .mgrid .w2{grid-column:span 2;}
+  .mgrid .w3{grid-column:span 3;}
+  .mgrid .wide{grid-column:1 / -1;}
+  .mgrid input,.mgrid select{padding:5px 7px; font-size:12.5px;}
+  @media(max-width:860px){.mgrid{grid-template-columns:repeat(2,1fr);} .mgrid .w2,.mgrid .w3{grid-column:1 / -1;}}
+  @media(max-width:520px){.mgrid{grid-template-columns:1fr;}}
+  .del{border:1px solid #ddd; background:#fff; color:#cc0000; font-size:12px; cursor:pointer;
+       font-family:inherit; padding:2px 9px; white-space:nowrap;}
+  .del:hover{background:#fff5f5; border-color:#cc0000;}
+  .frow{display:grid; grid-template-columns:1fr 110px 92px; gap:6px; margin-bottom:5px;
+        align-items:center; max-width:540px;}
+  .frow input{padding:5px 7px; font-size:12.5px;}
 
   /* ---- タブ（利用案内内のサブメニュー風） ---- */
   .tabs{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:0 0 18px;}
@@ -114,6 +128,15 @@
   #botInput{display:flex; border-top:1px solid #ddd;}
   #botInput input{flex:1; border:none; padding:9px 10px; font-size:13px; font-family:inherit; outline:none;}
   #botInput button{border:none; background:#2e7d32; color:#fff; padding:0 16px; cursor:pointer; font-family:inherit;}
+  #botHead .botctl{float:right; cursor:pointer; user-select:none; margin-left:11px; font-weight:700; line-height:1;}
+  /* .hide はクラスのため #botPanel（IDセレクタ）に詳細度で負けていた＝ボタンが効かない原因 */
+  #botPanel.hide{display:none;}
+  /* 最小化＝ヘッダーだけの高さ（.big より後に置いて優先させる） */
+  #botPanel.mini{width:330px;}
+  #botPanel.mini #botHead small,
+  #botPanel.mini #botLog,
+  #botPanel.mini #botQuick,
+  #botPanel.mini #botInput{display:none;}
 </style>
 </head>
 <body>
@@ -172,7 +195,7 @@
         <option>北海道演習林</option><option>千葉演習林</option><option>秩父演習林</option>
         <option>田無演習林</option><option>生態水文学研究所</option><option>富士癒しの森研究所</option><option>樹芸研究所</option>
       </select></div>
-    <div class="field" style="margin-top:6px"><label>他の演習林も同時に利用する場合（複数選択可）</label>
+    <div class="field" style="margin-top:6px"><label>他の演習林の利用予定（参考情報・複数選択可）</label>
       <div class="chips" id="f_forests_extra">
         <span class="chip" onclick="this.classList.toggle('on');judge()">千葉演習林</span>
         <span class="chip" onclick="this.classList.toggle('on');judge()">秩父演習林</span>
@@ -180,10 +203,13 @@
         <span class="chip" onclick="this.classList.toggle('on');judge()">生態水文学研究所</span>
         <span class="chip" onclick="this.classList.toggle('on');judge()">富士癒しの森研究所</span>
         <span class="chip" onclick="this.classList.toggle('on');judge()">樹芸研究所</span>
-      </div></div>
+      </div>
+      <p class="note-red" style="margin:4px 0 0; font-size:12.5px">※参考情報です。この入力によって他演習林への申込が行われるものではありません。</p>
+    </div>
     <div id="forestNote"></div>
     <p class="aside">※ 施設によって様式・締切・宿泊施設・料金が異なるため、<b>最初に施設を選ぶとフォーム全体がその施設仕様に切り替わる</b>設計。
-    複数施設を選んだ場合は、<b>同じ入力内容から施設ごとの様式一式を自動生成し、それぞれの施設へ提出</b>します（計画書・許可証は施設ごとに発行）。実装では施設マスタで制御（この試作は北海道演習林のみ実装）。</p>
+    他の演習林の利用予定は、演習林全体での利用状況を把握するための<b>参考情報</b>としてうかがうものです。申込はあくまで演習林ごとに行っていただきますが、
+    希望される場合は<b>同じ入力内容を引き継いで他演習林の様式を作成できる</b>ようにする想定です（計画書・許可証は施設ごとに発行）。実装では施設マスタで制御（この試作は北海道演習林のみ実装）。</p>
   </div>
 
   <h2 class="step">Step 2　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用代表者の情報（各様式 共通ヘッダ）</span></h2>
@@ -253,15 +279,23 @@
 
   <h2 class="step">Step 5　<span style="font-family:Meiryo; font-style:normal; font-size:14px;">利用者名簿（〔様式C〕利用者名簿_宿泊申込 に対応）</span></h2>
   <div class="box">
-    <div class="tblwrap" style="overflow-x:auto">
-    <div style="min-width:1050px">
-    <div class="roster-row roster-head">
-      <span>氏名</span><span>ふりがな</span><span>性別</span><span>生年月日</span><span>所属</span><span>身分</span><span>リスク事項（アレルギー等）</span><span>緊急連絡先 氏名（ふりがな）</span><span>続柄</span><span>電話</span><span></span>
-    </div>
     <div id="roster"></div>
-    </div>
-    </div>
     <button class="btn sec" onclick="addMember()">＋ 利用者を追加</button>
+    <p class="aside" style="margin-top:5px">※ 各ブロック右上の「✕ この行を削除」で利用者を削除できます（少なくとも1名は残ります）。</p>
+
+    <div class="box" style="margin-top:12px; border-color:#bbb">
+      <b style="font-size:13px">人数内訳（名簿から自動集計）</b>
+      <div id="breakdownOut" class="aside" style="margin-top:4px">—</div>
+      <div style="margin-top:12px">
+        <b style="font-size:13px">外国人の内訳（わかる範囲で）</b>
+        <div class="frow" style="font-size:11px; color:#666; margin-top:5px"><span>国名</span><span>人数</span><span></span></div>
+        <div id="foreignRows"></div>
+        <button class="btn sec" onclick="addForeign()">＋ 国を追加</button>
+        <span class="aside" id="foreignSum" style="margin-left:10px">—</span>
+        <p class="aside" style="margin-top:6px">※ 分かる範囲で結構です。国名が分からない場合は「不明」として人数のみご記入ください。
+        年報・統計での外国人利用者数の把握に使用します。</p>
+      </div>
+    </div>
     <p class="aside">※ 人数内訳（教職員/院生/学部生…×男女）は名簿から自動集計されます。利用者が未確定・変更の場合は、確定後にこの画面から追記してください（自動で差分提出）。</p>
     <div class="judge" style="margin-top:8px"><b>個人情報の取り扱い（本実装での設計方針）</b><br>
     ・実装では、利用代表者は<b>各利用者のメールアドレスを登録するだけ</b>。各利用者本人に入力用URLが届き、
@@ -269,6 +303,8 @@
     ・利用日前に全利用者分の収集漏れがないことをシステムが確認し、未提出があれば自動で督促します<br>
     ・緊急連絡先・リスク事項は<b>各演習林の担当者のみ閲覧可</b>（利用代表者を含む第三者には表示されません）<br>
     ・緊急時には担当者が迷わず参照できる専用画面を用意します<br>
+    ・収集するのは<b>利用許可の判断と宿泊手配に必要な項目のみ</b>（氏名・性別・所属・身分・リスク事項・メールアドレス・学年またはおよその年齢）とし、
+    <b>生年月日はうかがいません</b><br>
     ・登録情報は<b>年1回の登録で全演習林共通</b>で利用でき、定めた期間で<b>自動的に削除</b>されます</div>
     <div id="soloWarn"></div>
   </div>
@@ -391,7 +427,7 @@
   <!-- ==== 申請ガイドボット（試作＝ルールベース／本実装では生成AIに接続） ==== -->
   <button id="botBtn" onclick="botToggle()">💬 申請ガイド</button>
   <div id="botPanel" class="hide">
-    <div id="botHead"><span style="float:right; cursor:pointer; user-select:none; margin-left:10px" onclick="botToggle()" title="最小化">ー</span><span style="float:right; cursor:pointer; user-select:none" onclick="botSize()" title="大きく／普通">⤢</span>申請ガイドボット（試作）
+    <div id="botHead"><span class="botctl" onclick="botToggle()" title="閉じる">✕</span><span class="botctl" id="botMinBtn" onclick="botMin()" title="最小化">ー</span><span class="botctl" onclick="botSize()" title="大きく／普通">⤢</span>申請ガイドボット（試作）
       <small>この試作はルールベースの応答です。本実装では生成AI（Claude API・学内サーバ経由）に接続し、利用案内・規則の全文を根拠に回答します。</small>
     </div>
     <div id="botLog"></div>
@@ -403,7 +439,7 @@
       <button onclick="botAsk('必要な様式は？')">必要様式</button>
     </div>
     <div id="botInput">
-      <input type="text" id="botText" placeholder="質問を入力…" onkeydown="if(event.key==='Enter')botSend()">
+      <input type="text" id="botText" placeholder="質問を入力…" autocomplete="off">
       <button onclick="botSend()">送信</button>
     </div>
   </div>
@@ -411,17 +447,21 @@
   <div class="sitefoot">
     〒079-1563　北海道富良野市山部東町9番61号<br>
     TEL：0167-42-2111　FAX：0167-42-2689　E-mail：hokuen（アットマーク）uf.a.u-tokyo.ac.jp<br>
-    <span style="font-size:11px">オンライン利用申込（試作 v1.6・2026-08-14更新・平山翔湧作成）｜ 本画面はブラウザ内のみで動作し、データはどこにも送信されません</span>
+    <span style="font-size:11px">オンライン利用申込（試作 v1.8・2026-08-17更新・平山翔湧作成）｜ 本画面はブラウザ内のみで動作し、データはどこにも送信されません</span>
   </div>
 </div>
 
 <script>
 let members = [
-  {name:'平山 翔湧', kana:'ひらやま かける', sex:'男', birth:'2004-08-15', aff:'東大-工 石川研', pos:'学部学生', risk:'',
+  {name:'平山 翔湧', kana:'ひらやま かける', sex:'男', mail:'hirayama@example.u-tokyo.ac.jp',
+   affCat:'東京大学（その他の部局）', aff:'工学部 システム創成学科 石川研究室', pos:'学部学生', grade:'学部4年', risk:'',
    em_name:'平山 ○○（ひらやま ○○）', em_rel:'母', em_tel:'090-XXXX-XXXX'},
-  {name:'佐藤 ○○', kana:'さとう ○○', sex:'女', birth:'2002-04-01', aff:'東大-農 徳永研', pos:'大学院生', risk:'ハチアレルギー',
+  {name:'佐藤 ○○', kana:'さとう ○○', sex:'女', mail:'sato@example.u-tokyo.ac.jp',
+   affCat:'東京大学（農学生命科学研究科）', aff:'森林科学専攻 徳永研究室', pos:'大学院生', grade:'修士1年', risk:'ハチアレルギー',
    em_name:'佐藤 ○○（さとう ○○）', em_rel:'父', em_tel:'080-XXXX-XXXX'},
 ];
+// 外国人の内訳（わかる範囲で）
+let foreigners = [{country:'', n:''}];
 let apps = [
   {date:'2026-09-18', forest:'北海道演習林', no:'北演-2026-041', rep:'徳永 友花', title:'森林リモートセンシング実習', from:'2026-10-14', to:'2026-10-16',
    n:8, forms:'A2・B・C(泊)', state:'受理済', members:[
@@ -437,8 +477,24 @@ const FEES = {
   yamabe:  {stu:0, staff:1300, ostu:700, ostaff:2500, other:3700, child:0},
   seminar: {stu:0, staff:2500, ostu:700, ostaff:3700, other:4900, child:0},
 };
-// デモ簡略化：名簿の身分→料金区分（全員本学所属と仮定。実装では所属区分×身分で判定）
-const POS2FEE = {'教職員':'staff', '大学院生':'stu', '学部学生':'stu', '高校生':'ostu', 'その他':'other'};
+// 名簿の選択肢
+const AFF_CATS = ['東京大学（農学生命科学研究科）','東京大学（その他の部局）','他大学','国公立研究機関','民間企業','行政機関','その他'];
+const POS_LIST = ['教職員','大学院生','学部学生','高校生','その他'];
+
+// 所属カテゴリ×身分から料金区分を判定（所属を選択式にしたことで自動判定できるようになった）
+function feeKey(m){
+  const utokyo = (m.affCat||'').indexOf('東京大学') === 0;
+  if(m.pos === '教職員') return utokyo ? 'staff' : 'ostaff';
+  if(m.pos === '大学院生' || m.pos === '学部学生') return utokyo ? 'stu' : 'ostu';
+  if(m.pos === '高校生') return 'ostu';
+  return 'other';
+}
+
+// 入力値をHTMLに埋め込むときのエスケープ
+function esc(v){
+  return String(v == null ? '' : v)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 function tab(i, btn){
   document.querySelectorAll('section').forEach((s,k)=>s.classList.toggle('hide', k!==i));
@@ -498,33 +554,105 @@ function calcFee(){
   const to = new Date(document.getElementById('f_to').value);
   const nights = Math.max(0, Math.round((to - from)/86400000));
   let total = 0;
-  members.forEach(m=>{ total += (FEES[fac][POS2FEE[m.pos] || 'other'] || 0) * nights; });
+  members.forEach(m=>{ total += (FEES[fac][feeKey(m)] || 0) * nights; });
   document.getElementById('feeOut').innerHTML =
     `${members.length}名 × ${nights}泊 ＝ 施設使用料 <b>${total.toLocaleString()}円</b><br>` +
-    `<span style="font-size:11px">※ 本学の学生・院生等は施設使用料免除（料金表2024年4月改定より）。食費・洗濯費・雑費・暖房費（10/1〜4/30）は別途 — 実装では全て自動計算</span>`;
+    `<span style="font-size:11px">※ 名簿の<b>所属カテゴリ×身分</b>から料金区分を自動判定しています（本学の学生・院生等は施設使用料免除／料金表2024年4月改定より）。食費・洗濯費・雑費・暖房費（10/1〜4/30）は別途 — 実装では全て自動計算</span>`;
 }
 
-function addMember(){ members.push({name:'', kana:'', sex:'男', birth:'', aff:'', pos:'学部学生', risk:'', em_name:'', em_rel:'', em_tel:''}); renderRoster(); }
-function delMember(i){ members.splice(i,1); renderRoster(); }
+function addMember(){
+  members.push({name:'', kana:'', sex:'男', mail:'', affCat:'東京大学（その他の部局）', aff:'',
+                pos:'学部学生', grade:'', risk:'', em_name:'', em_rel:'', em_tel:''});
+  renderRoster();
+}
+function delMember(i){
+  if(members.length <= 1){
+    alert('利用者名簿には少なくとも1名が必要です。最後のお一人は削除できません。');
+    return;
+  }
+  members.splice(i, 1);
+  renderRoster();
+}
 function renderRoster(){
   const el = document.getElementById('roster');
-  el.innerHTML = members.map((m,i)=>`
-    <div class="roster-row">
-      <input type="text" value="${m.name}" onchange="members[${i}].name=this.value">
-      <input type="text" value="${m.kana||''}" placeholder="ふりがな" onchange="members[${i}].kana=this.value">
-      <select onchange="members[${i}].sex=this.value"><option${m.sex==='男'?' selected':''}>男</option><option${m.sex==='女'?' selected':''}>女</option></select>
-      <input type="date" value="${m.birth||''}" onchange="members[${i}].birth=this.value">
-      <input type="text" value="${m.aff}" onchange="members[${i}].aff=this.value">
-      <select onchange="members[${i}].pos=this.value;judge()">${['教職員','大学院生','学部学生','高校生','その他'].map(p=>`<option${m.pos===p?' selected':''}>${p}</option>`).join('')}</select>
-      <input type="text" value="${m.risk}" placeholder="なし" onchange="members[${i}].risk=this.value">
-      <input type="text" value="${m.em_name||''}" placeholder="例）山田 花子（やまだ はなこ）" onchange="members[${i}].em_name=this.value">
-      <input type="text" value="${m.em_rel||''}" placeholder="母" onchange="members[${i}].em_rel=this.value">
-      <input type="text" value="${m.em_tel||''}" placeholder="090-…" onchange="members[${i}].em_tel=this.value">
-      <button class="del" onclick="delMember(${i})" aria-label="削除">✕</button>
-    </div>`).join('');
+  el.innerHTML = members.map((m,i)=>{
+    const isOther = (m.affCat === 'その他');
+    return `
+    <div class="mcard">
+      <div class="mcard-h"><b>利用者 ${i+1}</b>
+        <button class="del" onclick="delMember(${i})" title="この行を削除" aria-label="この行を削除">✕ この行を削除</button></div>
+      <div class="mgrid">
+        <div class="field"><label>氏名</label>
+          <input type="text" value="${esc(m.name)}" onchange="members[${i}].name=this.value"></div>
+        <div class="field"><label>ふりがな</label>
+          <input type="text" value="${esc(m.kana)}" placeholder="やまだ たろう" onchange="members[${i}].kana=this.value"></div>
+        <div class="field"><label>性別</label>
+          <select onchange="members[${i}].sex=this.value;renderBreakdown()">${['男','女'].map(x=>`<option${m.sex===x?' selected':''}>${x}</option>`).join('')}</select></div>
+        <div class="field"><label>身分</label>
+          <select onchange="members[${i}].pos=this.value;renderBreakdown();judge()">${POS_LIST.map(x=>`<option${m.pos===x?' selected':''}>${x}</option>`).join('')}</select></div>
+        <div class="field w2"><label>所属（カテゴリ）</label>
+          <select onchange="members[${i}].affCat=this.value;renderRoster()">${AFF_CATS.map(c=>`<option${m.affCat===c?' selected':''}>${c}</option>`).join('')}</select></div>
+        <div class="field w2"><label>${isOther ? '所属（自由入力）<span class="note-red">＊必須</span>' : '所属の詳細（部局・研究室・機関名など）'}</label>
+          <input type="text" value="${esc(m.aff)}" placeholder="${isOther ? '例）〇〇財団 研究部' : '例）森林科学専攻 〇〇研究室'}" onchange="members[${i}].aff=this.value"></div>
+        <div class="field"><label>学年またはおよその年齢</label>
+          <input type="text" value="${esc(m.grade)}" placeholder="例）修士1年／20代" onchange="members[${i}].grade=this.value"></div>
+        <div class="field w3"><label>メールアドレス（本人あてに入力用URLをお送りします）</label>
+          <input type="email" value="${esc(m.mail)}" placeholder="example@example.u-tokyo.ac.jp" onchange="members[${i}].mail=this.value"></div>
+        <div class="field wide"><label>リスク事項（ハチ・食物アレルギー・既往症等／担当者のみ閲覧します）</label>
+          <input type="text" value="${esc(m.risk)}" placeholder="なし" onchange="members[${i}].risk=this.value"></div>
+        <div class="field w2"><label>緊急連絡先 氏名（ふりがな）</label>
+          <input type="text" value="${esc(m.em_name)}" placeholder="例）山田 花子（やまだ はなこ）" onchange="members[${i}].em_name=this.value"></div>
+        <div class="field"><label>緊急連絡先 続柄</label>
+          <input type="text" value="${esc(m.em_rel)}" placeholder="母" onchange="members[${i}].em_rel=this.value"></div>
+        <div class="field"><label>緊急連絡先 電話</label>
+          <input type="text" value="${esc(m.em_tel)}" placeholder="090-…" onchange="members[${i}].em_tel=this.value"></div>
+      </div>
+    </div>`;
+  }).join('');
   document.getElementById('soloWarn').innerHTML = (members.length===1)
     ? '<div class="warn">⚠ 利用者が1名です。安全管理上、<b>単独および夜間の入林は原則として認められません</b>（利用案内より）。同行者の追加をご検討ください。</div>' : '';
+  renderBreakdown();
   judge();
+}
+
+// ---------------- 人数内訳の自動集計 ----------------
+function renderBreakdown(){
+  const el = document.getElementById('breakdownOut');
+  if(!el) return;
+  const t = {};
+  members.forEach(m=>{
+    const p = POS_LIST.indexOf(m.pos) >= 0 ? m.pos : 'その他';
+    if(!t[p]) t[p] = {男:0, 女:0};
+    t[p][m.sex === '女' ? '女' : '男'] += 1;
+  });
+  const parts = POS_LIST.filter(p=>t[p]).map(p=>`${p} ${t[p].男 + t[p].女}名（男${t[p].男}・女${t[p].女}）`);
+  el.innerHTML = `合計 <b>${members.length}名</b>　` + (parts.length ? parts.join('／') : '—')
+    + '<br><span style="font-size:11.5px">※ 〔様式C〕の人数内訳欄には、この集計がそのまま入ります（手計算は不要です）。</span>';
+}
+
+// ---------------- 外国人の内訳（わかる範囲で） ----------------
+function addForeign(){ foreigners.push({country:'', n:''}); renderForeign(); }
+function delForeign(i){
+  foreigners.splice(i, 1);
+  if(!foreigners.length) foreigners.push({country:'', n:''});
+  renderForeign();
+}
+function foreignTotal(){
+  return foreigners.reduce((sum,f)=> sum + (parseInt(f.n, 10) || 0), 0);
+}
+function renderForeign(){
+  const el = document.getElementById('foreignRows');
+  if(!el) return;
+  el.innerHTML = foreigners.map((f,i)=>`
+    <div class="frow">
+      <input type="text" value="${esc(f.country)}" placeholder="例）中国／ドイツ／不明" onchange="foreigners[${i}].country=this.value">
+      <input type="number" min="0" step="1" value="${esc(f.n)}" placeholder="人数" onchange="foreigners[${i}].n=this.value;renderForeign()">
+      <button class="del" onclick="delForeign(${i})" title="この行を削除" aria-label="この行を削除">✕ 削除</button>
+    </div>`).join('');
+  const tot = foreignTotal();
+  document.getElementById('foreignSum').innerHTML = tot
+    ? `外国人 合計 <b>${tot}名</b>`
+    : '外国人の利用がない場合は空欄のままで結構です';
 }
 
 function submitApp(){
@@ -620,12 +748,49 @@ const BOT_RULES = [
   [/問い?合わせ|連絡|電話|メール/, '提出・問合せは<b>北海道演習林事務室（総務チーム）</b>まで。<br>TEL 0167-42-2111／FAX 0167-42-2689<br>E-mail hokuen（アットマーク）uf.a.u-tokyo.ac.jp'],
 ];
 
+let botComposing = false;   // 日本語入力（IME）で変換中かどうか
+
 function botToggle(){
   const p = document.getElementById('botPanel');
   p.classList.toggle('hide');
-  if(!p.classList.contains('hide') && !document.getElementById('botLog').childElementCount){
-    botReply('こんにちは。北海道演習林の利用申請についてご案内します。下のボタンを押すか、質問を入力してください。');
+  if(!p.classList.contains('hide')){
+    p.classList.remove('mini');
+    setBotMinLabel();
+    if(!document.getElementById('botLog').childElementCount){
+      botReply('こんにちは。北海道演習林の利用申請についてご案内します。下のボタンを押すか、質問を入力してください。');
+    }
   }
+}
+
+// 最小化＝ヘッダーだけの高さにする。もう一度押すと元に戻る
+function botMin(){
+  document.getElementById('botPanel').classList.toggle('mini');
+  setBotMinLabel();
+}
+function setBotMinLabel(){
+  const p = document.getElementById('botPanel');
+  const b = document.getElementById('botMinBtn');
+  if(!p || !b) return;
+  const mini = p.classList.contains('mini');
+  b.textContent = mini ? '□' : 'ー';
+  b.title = mini ? '元の大きさに戻す' : '最小化';
+}
+
+// 日本語入力の変換確定Enterでは送信しない（変換中はEnterを無視する）
+function botKey(e){
+  if(e.key !== 'Enter') return;
+  if(botComposing || e.isComposing || e.keyCode === 229) return;
+  e.preventDefault();
+  botSend();
+}
+
+// compositionstart / compositionend はHTMLのインライン属性では発火しないため、ここで登録する
+function initBotInput(){
+  const t = document.getElementById('botText');
+  if(!t) return;
+  t.addEventListener('compositionstart', function(){ botComposing = true; });
+  t.addEventListener('compositionend',   function(){ botComposing = false; });
+  t.addEventListener('keydown', botKey);
 }
 function botAsk(q){ botUser(q); setTimeout(()=>botAnswer(q), 300); }
 function botSend(){
@@ -702,7 +867,7 @@ function showConfirm(){
     <div class="box" style="border-width:2px">
       <b>―― 申込内容の確認 ――</b>
       <div class="tblwrap"><table>
-        <tr><th style="width:32%">利用する演習林</th><td>${v('f_forest')}${(()=>{const ex=[...document.querySelectorAll('#f_forests_extra .chip.on')].map(c=>c.textContent);return ex.length?'　＋同時申込：'+ex.join('・'):''})()}</td></tr>
+        <tr><th style="width:32%">利用する演習林</th><td>${v('f_forest')}${(()=>{const ex=[...document.querySelectorAll('#f_forests_extra .chip.on')].map(c=>c.textContent);return ex.length?'<br><span style="font-size:11.5px">他の演習林の利用予定（参考情報・申込ではありません）：'+ex.join('・')+'</span>':''})()}</td></tr>
         <tr><th>利用代表者</th><td>${v('f_name')}（${v('f_aff')}）</td></tr>
         <tr><th>連絡先</th><td>${v('f_mail')} ／ ${v('f_tel')}</td></tr>
         <tr><th>指導教員（自動CC）</th><td>${v('f_prof')}　${v('f_profmail')}</td></tr>
@@ -711,6 +876,9 @@ function showConfirm(){
         <tr><th>利用期間</th><td>${v('f_from')} 〜 ${v('f_to')}</td></tr>
         <tr><th>利用内容</th><td>${v('f_desc')}</td></tr>
         <tr><th>利用者</th><td>${members.length}名（${members.map(m=>m.name).join('、')}）</td></tr>
+        <tr><th>外国人の内訳</th><td>${foreignTotal()
+          ? foreigners.filter(f=>parseInt(f.n,10)>0).map(f=>`${f.country||'（国名未記入）'} ${parseInt(f.n,10)}名`).join('／') + `　計${foreignTotal()}名`
+          : '該当なし（または未記入）'}</td></tr>
         <tr><th>自動生成される様式</th><td>${forms.map(f=>'〔様式'+f.match(/^[A-H0-9]+/)[0]+'〕').join('')}</td></tr>
         <tr><th>締切チェック</th><td>${dw.length? '<span class="note-red">⚠ '+dw.join('／')+'</span>' : '✅ すべての締切ルールを満たしています'}</td></tr>
       </table></div>
@@ -810,12 +978,15 @@ function printEmergency(){
   const rows = members.map((m,i)=>`
     <tr>
       <td style="font-size:13pt">${i+1}</td>
-      <td style="font-size:13pt"><b>${m.name}</b><br><span style="font-size:9pt">${m.kana||''}</span></td>
-      <td>${m.birth||'—'}</td>
-      <td>${m.risk && m.risk!=='なし' ? '<b style="color:#b71c1c">'+m.risk+'</b>' : 'なし'}</td>
-      <td style="font-size:13pt"><b>${m.em_name||'—'}</b></td>
-      <td>${m.em_rel||'—'}</td>
-      <td style="font-size:14pt"><b>${m.em_tel||'—'}</b></td>
+      <td style="font-size:13pt"><b>${esc(m.name)}</b><br><span style="font-size:9pt">${esc(m.kana)}</span></td>
+      <td>${esc(m.sex)}</td>
+      <td>${esc(m.affCat)}${m.aff ? '<br><span style="font-size:9pt">'+esc(m.aff)+'</span>' : ''}</td>
+      <td>${esc(m.pos)}</td>
+      <td>${esc(m.grade) || '—'}</td>
+      <td>${m.risk && m.risk!=='なし' ? '<b style="color:#b71c1c">'+esc(m.risk)+'</b>' : 'なし'}</td>
+      <td style="font-size:13pt"><b>${esc(m.em_name) || '—'}</b></td>
+      <td>${esc(m.em_rel) || '—'}</td>
+      <td style="font-size:14pt"><b>${esc(m.em_tel) || '—'}</b></td>
     </tr>`).join('');
   const html = `
   <div style="font-family:Meiryo,sans-serif; color:#000; max-width:190mm; margin:0 auto; line-height:1.6">
@@ -823,13 +994,15 @@ function printEmergency(){
       🚨 緊急連絡先一覧（担当者専用）</p>
     <p style="font-size:11pt"><b>申込：森林GX/DXに関する現地調査（北演-2026-045）</b>　利用期間 2026年10月5日〜7日　利用代表者 平山 翔湧</p>
     <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse; width:100%; font-size:10.5pt">
-      <tr style="background:#f5f5f5"><td><b>No.</b></td><td><b>利用者氏名</b></td><td><b>生年月日</b></td><td><b>リスク事項</b></td>
+      <tr style="background:#f5f5f5"><td><b>No.</b></td><td><b>利用者氏名</b></td><td><b>性別</b></td><td><b>所属</b></td>
+      <td><b>身分</b></td><td><b>学年／年齢</b></td><td><b>リスク事項</b></td>
       <td><b>緊急連絡先 氏名</b></td><td><b>続柄</b></td><td><b>電話</b></td></tr>
       ${rows}
     </table>
     <p style="font-size:9pt; color:#555; margin-top:10px">
       ※ サンプル画面です（データは架空）。設計方針：①緊急時に1クリックで到達 ②氏名と電話番号を最大サイズで表示
-      ③リスク事項（アレルギー等）を赤字強調 ④閲覧ログを自動記録 ⑤平時は担当者アカウント以外に表示されない</p>
+      ③リスク事項（アレルギー等）を赤字強調 ④閲覧ログを自動記録 ⑤平時は担当者アカウント以外に表示されない
+      ⑥収集するのは利用許可の判断と宿泊手配に必要な項目のみとし、生年月日はうかがわない</p>
   </div>`;
   const w = window.open('', '_blank');
   w.document.write(`<html><head><meta charset="utf-8"><title>緊急連絡先（担当者専用・サンプル）</title></head><body>${html}</body></html>`);
@@ -837,10 +1010,17 @@ function printEmergency(){
 }
 
 // ---------------- ボットの拡大縮小 ----------------
-function botSize(){ document.getElementById('botPanel').classList.toggle('big'); }
+function botSize(){
+  const p = document.getElementById('botPanel');
+  p.classList.remove('mini');
+  setBotMinLabel();
+  p.classList.toggle('big');
+}
 
 renderRoster();
+renderForeign();
 judge();
+initBotInput();
 </script>
 </body>
 </html>
