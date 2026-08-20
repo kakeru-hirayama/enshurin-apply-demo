@@ -178,6 +178,36 @@
   }
   .tagbtn:hover{filter:brightness(0.94)}
 
+  /* 職員メモ（申し送り） */
+  .memo-list{margin-bottom:10px; max-height:260px; overflow-y:auto}
+  .memo-item{
+    border-left:3px solid var(--line); padding:5px 0 5px 9px;
+    margin-bottom:8px; font-size:13px;
+  }
+  .memo-item.mine{border-left-color:var(--green)}
+  .memo-head{display:flex; align-items:center; gap:8px; margin-bottom:2px}
+  .memo-name{font-weight:600; font-size:12.5px}
+  .memo-at{font-size:11.5px; color:var(--gray)}
+  .memo-del{
+    margin-left:auto; border:none; background:none; color:#B8BCC2;
+    cursor:pointer; font-size:15px; line-height:1; padding:0 3px;
+  }
+  .memo-del:hover{color:#B02418}
+  .memo-body{line-height:1.75; white-space:pre-wrap; word-break:break-word}
+  .memo-empty{
+    font-size:12.5px; color:var(--gray);
+    padding:8px 0 12px; border-bottom:1px solid var(--line); margin-bottom:10px;
+  }
+  .memo-new textarea{
+    width:100%; padding:8px; font-size:13px; font-family:inherit;
+    border:1px solid var(--line); border-radius:4px; line-height:1.7;
+    resize:vertical;
+  }
+  .memo-foot{
+    display:flex; align-items:center; gap:9px; margin-top:6px;
+  }
+  .memo-who{font-size:11.5px; color:var(--gray); flex:1}
+
   /* 入力が残っていることの表示 */
   .savednote{
     background:#FFF8E6; border-bottom:1px solid #E4D5A8;
@@ -1337,6 +1367,27 @@ var API = (function () {
     var users = byId(db.readAll('M_USER'), 'user_id');
     var statuses = db.readAll('M_STATUS');
 
+    // ★探すときは、ふせんの名前と職員メモも見る。
+    //   「返事待ち」で絞れないと、ふせんを貼る意味が半分になる。
+    //   （2026-08-21 ご指摘）
+    //
+    //   引くのは、探す言葉があるときだけ。
+    //   毎回引くと、一覧を開くたびに2つの表を読むことになる。
+    var tagsBy = {}, memoBy = {};
+    if (q.keyword) {
+      var tagName = {};
+      db.readAll('M_TAG').forEach(function (t) { tagName[t.tag_id] = t.name; });
+      db.readAll('T_APP_TAG').forEach(function (r) {
+        var n = tagName[r.tag_id];
+        if (!n) return;
+        tagsBy[r.app_id] = (tagsBy[r.app_id] || '') + ' ' + n;
+      });
+      db.readAll('T_MESSAGE').forEach(function (m) {
+        if (m.kind !== '所内メモ') return;
+        memoBy[m.app_id] = (memoBy[m.app_id] || '') + ' ' + m.body;
+      });
+    }
+
     return apps.filter(function (a) {
       if (q.forest_id && a.forest_id !== q.forest_id) return false;
       if (q.status && a.status !== q.status) return false;
@@ -1344,9 +1395,10 @@ var API = (function () {
       if (q.from && a.date_to < q.from) return false;
       if (q.to && a.date_from > q.to) return false;
       if (q.keyword) {
-        var hay = [a.purpose, a.rep_org, a.place].join(' ');
+        var hay = [a.purpose, a.rep_org, a.place, a.app_id].join(' ');
         var u = users[a.rep_user_id];
         if (u) hay += ' ' + u.name;
+        hay += (tagsBy[a.app_id] || '') + (memoBy[a.app_id] || '');
         if (hay.indexOf(q.keyword) < 0) return false;
       }
       return true;
@@ -1765,6 +1817,87 @@ var API = (function () {
                  n + '件' + (opt.tag_id ? '　' + opt.tag_id : ''));
     }
     return { ok: errs.length === 0, done: n, errors: errs };
+  }
+
+  // ------------------------------------------------ 職員のメモ
+
+  /**
+   * 申込にメモを書き足す
+   *
+   * ★1つの欄を上書きする形ではなく、書き足していく形にする。
+   *   上書きだと、あとから書いた人が前の内容を消してしまう。
+   *   誰がいつ書いたのかも残らない。
+   *
+   *   電話で伺ったことは、日付と担当者が分かってはじめて役に立つ。
+   *
+   * ★書いた内容は、職員の方には全員に見える。
+   *   個人あての連絡には使わない。
+   */
+  function addMemo(appId, body, staffId) {
+    body = String(body || '').trim();
+    if (!body) return { ok: false, error: '内容を入れてください' };
+
+    var a = db.findByKey('T_APPLICATION', appId);
+    if (!a) return { ok: false, error: '申込が見つかりません' };
+
+    var staff = staffId ? db.findByKey('M_STAFF', staffId) : null;
+    if (!staff || staff.active === false) {
+      return { ok: false, error: 'この操作には職員としてのログインが必要です' };
+    }
+
+    var id = db.nextId('T_MESSAGE', 'M');
+    db.insert('T_MESSAGE', {
+      msg_id: id,
+      app_id: appId,
+      at: now(),
+      kind: '所内メモ',
+      from: staffId,
+      to: '',
+      body: body
+    });
+    return { ok: true, msg_id: id };
+  }
+
+  /**
+   * 申込に書かれたメモを、古い順に返す
+   * ★誰が書いたかは、職員の名前に置き換えて返す
+   */
+  function getMemos(appId) {
+    var staff = byId(db.readAll('M_STAFF'), 'staff_id');
+    return db.readAll('T_MESSAGE')
+      .filter(function (m) {
+        return m.app_id === appId && m.kind === '所内メモ';
+      })
+      .sort(function (x, y) { return String(x.at) < String(y.at) ? -1 : 1; })
+      .map(function (m) {
+        var w = staff[m.from];
+        return {
+          msg_id: m.msg_id,
+          at: m.at,
+          from: m.from,
+          from_name: w ? w.name : (m.from || '（不明）'),
+          body: m.body
+        };
+      });
+  }
+
+  /**
+   * 自分が書いたメモを消す
+   *
+   * ★消せるのは自分が書いたものだけ。
+   *   他の方の書き込みを消せると、
+   *   「言った・言わない」を後から作り出せてしまう。
+   */
+  function removeMemo(msgId, staffId) {
+    var m = db.findByKey('T_MESSAGE', msgId);
+    if (!m) return { ok: false, error: '見つかりません' };
+    if (m.from !== staffId) {
+      return { ok: false,
+               error: 'ご自身が書いたものだけ、お消しいただけます' };
+    }
+    db.remove('T_MESSAGE', msgId);
+    writeAudit(staffId, 'メモを削除', m.app_id, String(m.body).slice(0, 40));
+    return { ok: true };
   }
 
   function firstStatusOf(forestId) {
@@ -2434,6 +2567,9 @@ var API = (function () {
     updateStatus: updateStatus,
     markSeen: markSeen,
     markUnseen: markUnseen,
+    addMemo: addMemo,
+    getMemos: getMemos,
+    removeMemo: removeMemo,
     countUnseen: countUnseen,
     setStar: setStar,
     getTags: getTags,
@@ -4571,7 +4707,7 @@ var ListView = (function () {
 
         '<label>検索</label>' +
         '<input type="text" id="list-kw" value="' + esc(state.keyword || '') + '" ' +
-          'placeholder="代表者・所属・目的" style="width:210px" ' +
+          'placeholder="代表者・所属・目的・ふせん・メモ" style="width:250px" ' +
           'oninput="state.keyword=this.value;ListView.refresh()">' +
 
         '<label style="cursor:pointer">' +
@@ -5247,20 +5383,20 @@ function renderDetail(){
           'ここは仮置きで、9月のヒアリングで確定する。</div>'+
       '</div></div>'+
 
-      // 職員だけが見る覚え書き。★申込者には見えない
+      // 職員の申し送り。★申込者には見えないが、職員には全員に見える
       '<div class="card"><h3>職員メモ</h3><div class="body">'+
-        '<textarea id="memo" rows="4" style="width:100%;padding:8px;'+
-          'font-size:13px;font-family:inherit;border:1px solid var(--line);'+
-          'border-radius:4px;line-height:1.7" '+
-          'placeholder="電話で伺ったことなど。申込者には表示されません">'+
-          esc(a.staff_memo||'')+'</textarea>'+
-        '<div style="margin-top:6px">'+
-          '<button class="btn" onclick="saveMemo(\''+a.app_id+'\')">保存</button>'+
-          '<span id="memo-msg" style="font-size:12px;color:var(--gray);'+
-            'margin-left:9px"></span>'+
+        memoList(a.app_id)+
+        '<div class="memo-new">'+
+          '<textarea id="memo" rows="2" '+
+            'placeholder="電話で伺ったことなど"></textarea>'+
+          '<div class="memo-foot">'+
+            '<span class="memo-who">' + esc(meNow ? meNow.name : '') + ' として書き込みます</span>'+
+            '<button class="btn" onclick="postMemo(' + q(a.app_id) + ')">書き込む</button>'+
+          '</div>'+
         '</div>'+
-        '<div class="note">★この欄がないと、電話で聞いたことが'+
-          '職員個人の手元にしか残らない。</div>'+
+        '<div class="note">★申込者には表示されません。'+
+          '職員の方には全員に見えます。個人あてのご連絡にはお使いにならないでください。<br>'+
+          '　書いたものは残ります。ご自身が書いたものだけ、お消しいただけます。</div>'+
       '</div></div>'+
 
       '<div class="card"><h3>参加者　'+parts.length+'名'+
@@ -5357,22 +5493,76 @@ function forceStatus(appId){
   else { alert('変えられませんでした' + NL + NL + ((r&&r.error)||'')); }
 }
 
-/** 職員の覚え書きを保存する */
-function saveMemo(appId){
-  var v = ($('memo')||{}).value || '';
-  try{
-    API.adapter().update('T_APPLICATION', appId, {
-      staff_memo: v,
-      updated_at: new Date().toISOString().slice(0,19).replace('T',' ')
-    });
-    var el = $('memo-msg');
-    if(el){
-      el.textContent = '保存しました';
-      setTimeout(function(){ if(el) el.textContent=''; }, 2500);
-    }
-  }catch(e){
-    alert('保存できませんでした' + NL + NL + (e.message||''));
+/** 書き込みを onclick に埋める形にする */
+function q(v){
+  return String.fromCharCode(39) +
+         String(v).replace(/[^0-9A-Za-z_-]/g, '') +
+         String.fromCharCode(39);
+}
+
+/**
+ * 申込に書かれたメモを並べる
+ * ★古い順。会話と同じ向きにする
+ */
+function memoList(appId){
+  var list = [];
+  try{ list = API.getMemos(appId); }catch(e){ list = []; }
+  if(!list.length){
+    return '<div class="memo-empty">まだ書き込みはありません。</div>';
   }
+  var me = Auth.current();
+  var myId = me ? me.id : '';
+
+  return '<div class="memo-list">'+
+    list.map(function(m){
+      var mine = (m.from === myId);
+      return '<div class="memo-item' + (mine ? ' mine' : '') + '">'+
+        '<div class="memo-head">'+
+          '<span class="memo-name">' + esc(m.from_name) + '</span>'+
+          '<span class="memo-at">' + esc(fmtAt(m.at)) + '</span>'+
+          (mine ? '<button class="memo-del" title="消す" '+
+                  'onclick="delMemo(' + q(m.msg_id) + ')">×</button>' : '')+
+        '</div>'+
+        '<div class="memo-body">' + esc(m.body).replace(/\n/g, '<br>') + '</div>'+
+      '</div>';
+    }).join('')+
+  '</div>';
+}
+
+/** 2026-08-21 01:30:00 を「8月21日 01:30」にする */
+function fmtAt(at){
+  var m = String(at||'').match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if(!m) return String(at||'');
+  var today = new Date();
+  var sameDay = (Number(m[1])===today.getFullYear() &&
+                 Number(m[2])===today.getMonth()+1 &&
+                 Number(m[3])===today.getDate());
+  if(sameDay) return '本日 ' + m[4] + ':' + m[5];
+  return Number(m[2]) + '月' + Number(m[3]) + '日 ' + m[4] + ':' + m[5];
+}
+
+/** メモを書き込む */
+function postMemo(appId){
+  var el = $('memo');
+  var v = (el && el.value) || '';
+  if(!v.trim()) return;
+  var me = Auth.current();
+  var r = API.addMemo(appId, v, me ? me.id : '');
+  if(!r.ok){ alert(r.error); return; }
+  if(el) el.value = '';
+  renderDetail();
+}
+
+/**
+ * 自分が書いたメモを消す
+ * ★他の方の書き込みは消せない。API層でも確かめている
+ */
+function delMemo(msgId){
+  if(!confirm('この書き込みを消します。よろしいですか。')) return;
+  var me = Auth.current();
+  var r = API.removeMemo(msgId, me ? me.id : '');
+  if(!r.ok){ alert(r.error); return; }
+  renderDetail();
 }
 
 function openEmergency(userId){

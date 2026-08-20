@@ -168,6 +168,36 @@
   }
   .tagbtn:hover{filter:brightness(0.94)}
 
+  /* 職員メモ（申し送り） */
+  .memo-list{margin-bottom:10px; max-height:260px; overflow-y:auto}
+  .memo-item{
+    border-left:3px solid var(--line); padding:5px 0 5px 9px;
+    margin-bottom:8px; font-size:13px;
+  }
+  .memo-item.mine{border-left-color:var(--green)}
+  .memo-head{display:flex; align-items:center; gap:8px; margin-bottom:2px}
+  .memo-name{font-weight:600; font-size:12.5px}
+  .memo-at{font-size:11.5px; color:var(--gray)}
+  .memo-del{
+    margin-left:auto; border:none; background:none; color:#B8BCC2;
+    cursor:pointer; font-size:15px; line-height:1; padding:0 3px;
+  }
+  .memo-del:hover{color:#B02418}
+  .memo-body{line-height:1.75; white-space:pre-wrap; word-break:break-word}
+  .memo-empty{
+    font-size:12.5px; color:var(--gray);
+    padding:8px 0 12px; border-bottom:1px solid var(--line); margin-bottom:10px;
+  }
+  .memo-new textarea{
+    width:100%; padding:8px; font-size:13px; font-family:inherit;
+    border:1px solid var(--line); border-radius:4px; line-height:1.7;
+    resize:vertical;
+  }
+  .memo-foot{
+    display:flex; align-items:center; gap:9px; margin-top:6px;
+  }
+  .memo-who{font-size:11.5px; color:var(--gray); flex:1}
+
   /* 入力が残っていることの表示 */
   .savednote{
     background:#FFF8E6; border-bottom:1px solid #E4D5A8;
@@ -756,20 +786,20 @@ function renderDetail(){
           'ここは仮置きで、9月のヒアリングで確定する。</div>'+
       '</div></div>'+
 
-      // 職員だけが見る覚え書き。★申込者には見えない
+      // 職員の申し送り。★申込者には見えないが、職員には全員に見える
       '<div class="card"><h3>職員メモ</h3><div class="body">'+
-        '<textarea id="memo" rows="4" style="width:100%;padding:8px;'+
-          'font-size:13px;font-family:inherit;border:1px solid var(--line);'+
-          'border-radius:4px;line-height:1.7" '+
-          'placeholder="電話で伺ったことなど。申込者には表示されません">'+
-          esc(a.staff_memo||'')+'</textarea>'+
-        '<div style="margin-top:6px">'+
-          '<button class="btn" onclick="saveMemo(\''+a.app_id+'\')">保存</button>'+
-          '<span id="memo-msg" style="font-size:12px;color:var(--gray);'+
-            'margin-left:9px"></span>'+
+        memoList(a.app_id)+
+        '<div class="memo-new">'+
+          '<textarea id="memo" rows="2" '+
+            'placeholder="電話で伺ったことなど"></textarea>'+
+          '<div class="memo-foot">'+
+            '<span class="memo-who">' + esc(meNow ? meNow.name : '') + ' として書き込みます</span>'+
+            '<button class="btn" onclick="postMemo(' + q(a.app_id) + ')">書き込む</button>'+
+          '</div>'+
         '</div>'+
-        '<div class="note">★この欄がないと、電話で聞いたことが'+
-          '職員個人の手元にしか残らない。</div>'+
+        '<div class="note">★申込者には表示されません。'+
+          '職員の方には全員に見えます。個人あてのご連絡にはお使いにならないでください。<br>'+
+          '　書いたものは残ります。ご自身が書いたものだけ、お消しいただけます。</div>'+
       '</div></div>'+
 
       '<div class="card"><h3>参加者　'+parts.length+'名'+
@@ -866,22 +896,76 @@ function forceStatus(appId){
   else { alert('変えられませんでした' + NL + NL + ((r&&r.error)||'')); }
 }
 
-/** 職員の覚え書きを保存する */
-function saveMemo(appId){
-  var v = ($('memo')||{}).value || '';
-  try{
-    API.adapter().update('T_APPLICATION', appId, {
-      staff_memo: v,
-      updated_at: new Date().toISOString().slice(0,19).replace('T',' ')
-    });
-    var el = $('memo-msg');
-    if(el){
-      el.textContent = '保存しました';
-      setTimeout(function(){ if(el) el.textContent=''; }, 2500);
-    }
-  }catch(e){
-    alert('保存できませんでした' + NL + NL + (e.message||''));
+/** 書き込みを onclick に埋める形にする */
+function q(v){
+  return String.fromCharCode(39) +
+         String(v).replace(/[^0-9A-Za-z_-]/g, '') +
+         String.fromCharCode(39);
+}
+
+/**
+ * 申込に書かれたメモを並べる
+ * ★古い順。会話と同じ向きにする
+ */
+function memoList(appId){
+  var list = [];
+  try{ list = API.getMemos(appId); }catch(e){ list = []; }
+  if(!list.length){
+    return '<div class="memo-empty">まだ書き込みはありません。</div>';
   }
+  var me = Auth.current();
+  var myId = me ? me.id : '';
+
+  return '<div class="memo-list">'+
+    list.map(function(m){
+      var mine = (m.from === myId);
+      return '<div class="memo-item' + (mine ? ' mine' : '') + '">'+
+        '<div class="memo-head">'+
+          '<span class="memo-name">' + esc(m.from_name) + '</span>'+
+          '<span class="memo-at">' + esc(fmtAt(m.at)) + '</span>'+
+          (mine ? '<button class="memo-del" title="消す" '+
+                  'onclick="delMemo(' + q(m.msg_id) + ')">×</button>' : '')+
+        '</div>'+
+        '<div class="memo-body">' + esc(m.body).replace(/\n/g, '<br>') + '</div>'+
+      '</div>';
+    }).join('')+
+  '</div>';
+}
+
+/** 2026-08-21 01:30:00 を「8月21日 01:30」にする */
+function fmtAt(at){
+  var m = String(at||'').match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if(!m) return String(at||'');
+  var today = new Date();
+  var sameDay = (Number(m[1])===today.getFullYear() &&
+                 Number(m[2])===today.getMonth()+1 &&
+                 Number(m[3])===today.getDate());
+  if(sameDay) return '本日 ' + m[4] + ':' + m[5];
+  return Number(m[2]) + '月' + Number(m[3]) + '日 ' + m[4] + ':' + m[5];
+}
+
+/** メモを書き込む */
+function postMemo(appId){
+  var el = $('memo');
+  var v = (el && el.value) || '';
+  if(!v.trim()) return;
+  var me = Auth.current();
+  var r = API.addMemo(appId, v, me ? me.id : '');
+  if(!r.ok){ alert(r.error); return; }
+  if(el) el.value = '';
+  renderDetail();
+}
+
+/**
+ * 自分が書いたメモを消す
+ * ★他の方の書き込みは消せない。API層でも確かめている
+ */
+function delMemo(msgId){
+  if(!confirm('この書き込みを消します。よろしいですか。')) return;
+  var me = Auth.current();
+  var r = API.removeMemo(msgId, me ? me.id : '');
+  if(!r.ok){ alert(r.error); return; }
+  renderDetail();
 }
 
 function openEmergency(userId){

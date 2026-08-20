@@ -76,6 +76,27 @@ var API = (function () {
     var users = byId(db.readAll('M_USER'), 'user_id');
     var statuses = db.readAll('M_STATUS');
 
+    // ★探すときは、ふせんの名前と職員メモも見る。
+    //   「返事待ち」で絞れないと、ふせんを貼る意味が半分になる。
+    //   （2026-08-21 ご指摘）
+    //
+    //   引くのは、探す言葉があるときだけ。
+    //   毎回引くと、一覧を開くたびに2つの表を読むことになる。
+    var tagsBy = {}, memoBy = {};
+    if (q.keyword) {
+      var tagName = {};
+      db.readAll('M_TAG').forEach(function (t) { tagName[t.tag_id] = t.name; });
+      db.readAll('T_APP_TAG').forEach(function (r) {
+        var n = tagName[r.tag_id];
+        if (!n) return;
+        tagsBy[r.app_id] = (tagsBy[r.app_id] || '') + ' ' + n;
+      });
+      db.readAll('T_MESSAGE').forEach(function (m) {
+        if (m.kind !== '所内メモ') return;
+        memoBy[m.app_id] = (memoBy[m.app_id] || '') + ' ' + m.body;
+      });
+    }
+
     return apps.filter(function (a) {
       if (q.forest_id && a.forest_id !== q.forest_id) return false;
       if (q.status && a.status !== q.status) return false;
@@ -83,9 +104,10 @@ var API = (function () {
       if (q.from && a.date_to < q.from) return false;
       if (q.to && a.date_from > q.to) return false;
       if (q.keyword) {
-        var hay = [a.purpose, a.rep_org, a.place].join(' ');
+        var hay = [a.purpose, a.rep_org, a.place, a.app_id].join(' ');
         var u = users[a.rep_user_id];
         if (u) hay += ' ' + u.name;
+        hay += (tagsBy[a.app_id] || '') + (memoBy[a.app_id] || '');
         if (hay.indexOf(q.keyword) < 0) return false;
       }
       return true;
@@ -504,6 +526,87 @@ var API = (function () {
                  n + '件' + (opt.tag_id ? '　' + opt.tag_id : ''));
     }
     return { ok: errs.length === 0, done: n, errors: errs };
+  }
+
+  // ------------------------------------------------ 職員のメモ
+
+  /**
+   * 申込にメモを書き足す
+   *
+   * ★1つの欄を上書きする形ではなく、書き足していく形にする。
+   *   上書きだと、あとから書いた人が前の内容を消してしまう。
+   *   誰がいつ書いたのかも残らない。
+   *
+   *   電話で伺ったことは、日付と担当者が分かってはじめて役に立つ。
+   *
+   * ★書いた内容は、職員の方には全員に見える。
+   *   個人あての連絡には使わない。
+   */
+  function addMemo(appId, body, staffId) {
+    body = String(body || '').trim();
+    if (!body) return { ok: false, error: '内容を入れてください' };
+
+    var a = db.findByKey('T_APPLICATION', appId);
+    if (!a) return { ok: false, error: '申込が見つかりません' };
+
+    var staff = staffId ? db.findByKey('M_STAFF', staffId) : null;
+    if (!staff || staff.active === false) {
+      return { ok: false, error: 'この操作には職員としてのログインが必要です' };
+    }
+
+    var id = db.nextId('T_MESSAGE', 'M');
+    db.insert('T_MESSAGE', {
+      msg_id: id,
+      app_id: appId,
+      at: now(),
+      kind: '所内メモ',
+      from: staffId,
+      to: '',
+      body: body
+    });
+    return { ok: true, msg_id: id };
+  }
+
+  /**
+   * 申込に書かれたメモを、古い順に返す
+   * ★誰が書いたかは、職員の名前に置き換えて返す
+   */
+  function getMemos(appId) {
+    var staff = byId(db.readAll('M_STAFF'), 'staff_id');
+    return db.readAll('T_MESSAGE')
+      .filter(function (m) {
+        return m.app_id === appId && m.kind === '所内メモ';
+      })
+      .sort(function (x, y) { return String(x.at) < String(y.at) ? -1 : 1; })
+      .map(function (m) {
+        var w = staff[m.from];
+        return {
+          msg_id: m.msg_id,
+          at: m.at,
+          from: m.from,
+          from_name: w ? w.name : (m.from || '（不明）'),
+          body: m.body
+        };
+      });
+  }
+
+  /**
+   * 自分が書いたメモを消す
+   *
+   * ★消せるのは自分が書いたものだけ。
+   *   他の方の書き込みを消せると、
+   *   「言った・言わない」を後から作り出せてしまう。
+   */
+  function removeMemo(msgId, staffId) {
+    var m = db.findByKey('T_MESSAGE', msgId);
+    if (!m) return { ok: false, error: '見つかりません' };
+    if (m.from !== staffId) {
+      return { ok: false,
+               error: 'ご自身が書いたものだけ、お消しいただけます' };
+    }
+    db.remove('T_MESSAGE', msgId);
+    writeAudit(staffId, 'メモを削除', m.app_id, String(m.body).slice(0, 40));
+    return { ok: true };
   }
 
   function firstStatusOf(forestId) {
@@ -1173,6 +1276,9 @@ var API = (function () {
     updateStatus: updateStatus,
     markSeen: markSeen,
     markUnseen: markUnseen,
+    addMemo: addMemo,
+    getMemos: getMemos,
+    removeMemo: removeMemo,
     countUnseen: countUnseen,
     setStar: setStar,
     getTags: getTags,
