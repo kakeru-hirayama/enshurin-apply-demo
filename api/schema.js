@@ -207,7 +207,16 @@ var SCHEMA = {
       //   途中に入れると、すでに入っているデータが1列ずれる。
       { key: 'staff_memo',  label: '職員メモ',      type: 'text',
         note: '★申込者には見せない。電話で伺ったことなどを書き留める場所。'
-            + 'この欄がないと、職員は別のノートや口頭で引き継ぐことになる' }
+            + 'この欄がないと、職員は別のノートや口頭で引き継ぐことになる' },
+
+      // ---- 未読かどうか（メールソフトと同じ考え方）
+      //
+      //   ★担当の方が1〜2名の施設が多いため、
+      //     「誰かが開いたら既読」という単純な形にする。
+      //     職員ごとに持つと、列が人数分に増えて扱いにくい。
+      { key: 'seen_at',     label: '確認日時',      type: 'datetime',
+        note: '職員がはじめて開いた日時。空なら未読' },
+      { key: 'seen_by',     label: '確認者',        type: 'ref', ref: 'M_STAFF' }
     ]
   },
 
@@ -338,6 +347,44 @@ var SCHEMA = {
       { key: 'used',    label: '使用日時',   type: 'datetime' },
       { key: 'tries',   label: '試行回数',   type: 'number' },
       { key: 'issued',  label: '発行日時',   type: 'datetime' }
+    ]
+  },
+
+  /**
+   * TC  送るのを待っているメール
+   *
+   * ■ なぜ控えておくか
+   *   1日に送れる数には上限がある。
+   *   　無料のGoogleアカウント　　100通
+   *   　Google Workspace（大学）　1,500通
+   *
+   *   実績から見積もると、多い日で数百通になることがある。
+   *   （2025年度の実績で、1日に7,977通に相当する行事があった）
+   *
+   *   上限に達したときに「送れませんでした」で終わらせると、
+   *   その案内は永久に届かない。誰も気づけない。
+   *
+   *   送れなかったものをここに控え、翌日に送り直す。
+   *   職員の画面には「◯通が未送信」と出す。
+   *
+   * ■ 本文を控えることについて
+   *   ★宛先と本文が残る。個人情報を含むため、
+   *     送り終えたものは30日で消す（cleanupMailQueue）。
+   */
+  T_MAIL_QUEUE: {
+    sheet: 'TC_送信待ち',
+    key: null,
+    columns: [
+      { key: 'queued_at', label: '受付日時', type: 'datetime' },
+      { key: 'to',        label: '宛先',     type: 'text' },
+      { key: 'subject',   label: '件名',     type: 'text' },
+      { key: 'body',      label: '本文',     type: 'text' },
+      { key: 'kind',      label: '種類',     type: 'text',
+        note: '受付／招待／ログイン／お知らせ' },
+      { key: 'app_id',    label: '申込',     type: 'text' },
+      { key: 'tries',     label: '試した回数', type: 'number' },
+      { key: 'sent_at',   label: '送信日時', type: 'datetime' },
+      { key: 'error',     label: '最後の失敗', type: 'text' }
     ]
   },
 

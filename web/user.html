@@ -148,6 +148,37 @@
     font-size:11.5px; color:var(--gray); line-height:1.8;
   }
   .devnote b{color:var(--green)}
+  /* 書きかけの案内（F-22 一時保存） */
+  .draft-banner{
+    background:#FFF8E6; border:1px solid #E4D5A8; border-radius:5px;
+    padding:9px 12px; margin-bottom:14px; font-size:13px;
+    display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+  }
+  .draft-when{flex:1; min-width:220px; color:#6B5A22}
+  .draft-btn{
+    border:1px solid #C9B26B; background:#fff; color:#6B5A22;
+    border-radius:4px; padding:4px 12px; font-size:12.5px;
+    cursor:pointer; font-family:inherit;
+  }
+  .draft-btn:hover{background:#FDF6E3}
+  .draft-btn.sub{border-color:var(--line); color:var(--gray)}
+  .draft-saved{
+    font-size:11.5px; color:var(--gray); margin-top:5px;
+  }
+
+  /* 様式のダウンロード */
+  .dlrow{margin-top:6px; display:flex; gap:7px; flex-wrap:wrap}
+  .formdl{
+    display:inline-block; font-size:12px; padding:3px 11px;
+    border:1px solid var(--line); border-radius:4px;
+    background:#fff; color:var(--fg); text-decoration:none;
+    cursor:pointer; font-family:inherit; line-height:1.7;
+  }
+  .formdl:hover{background:#F0F3F0}
+  .formdl.fill{
+    border-color:var(--green); color:var(--green); font-weight:600;
+  }
+  .formdl.fill:hover{background:#EDF3ED}
 
   /* 入力欄の下に出す小さな添え書き。日付の読み方など */
   .hint{
@@ -188,6 +219,7 @@ if (typeof NL === "undefined") var NL = String.fromCharCode(10);
 <script src="../api/auth.js"></script>
 <script src="../api/upload.js"></script>
 <script src="_login.js"></script>
+<script src="_draft.js"></script>
 <script src="../api/seed_public.js"></script>
 <script src="../api/forms_seed.js"></script>
 <script>
@@ -216,6 +248,32 @@ var S = {
 };
 
 /* 画面に出す文字。生成の途中で壊れないよう、ここにまとめて置く */
+
+var CHR39 = String.fromCharCode(39);
+
+var DASH = '-';
+
+var SEP = '、';
+
+var CATCH = 'catch';
+
+var TARGET_BLANK = '_blank';
+
+var RPC_FORM = 'makeForm';
+
+var FORM_BLANK = '白紙の様式';
+
+var FORM_FILLED = '入力済みの様式を作る';
+
+var MSG_NEED_APP = 'お申し込みを確定してから、入力済みの様式をお作りできます。';
+
+var MSG_NO_SERVER = 'この画面は試作のため、入力済みの様式はお作りできません。白紙の様式をお使いください。';
+
+var MSG_FORM_FAIL = '様式をお作りできませんでした。';
+
+var MSG_PARTIAL = '次の項目は空欄のままです。手でご記入ください。';
+
+
 
 var UNDEF = 'undefined';
 
@@ -294,6 +352,10 @@ function renderSteps(){
 
 function render(){
   renderLogin();
+  // 入力の途中を残す。少し待ってからまとめて残すので、重くならない
+  if(typeof Draft !== 'undefined' && S.step >= 1 && S.step <= 4){
+    Draft.watch('user_app', function(){ return S.draft; });
+  }
   renderSteps();
   ({1:step1, 2:step2, 3:step3, 4:step4, 5:done, 9:profile, 8:myApps})[S.step]();
 }
@@ -370,9 +432,18 @@ function myApps(){
 
 // ============================================ 1　利用の内容
 function step1(){
+  // ★書きかけがあれば、続きから書けるようにする。
+  //   勝手に戻さず、戻すかどうかはご本人に選んでいただく。
+  var draftHtml = (typeof Draft !== 'undefined')
+    ? Draft.banner('user_app', function (d) {
+        if (d) { S.draft = d; }
+        render();
+      })
+    : '';
   var forests = API.getMasters().forests;
   var d = S.draft;
   $('view').innerHTML =
+    draftHtml +
   '<div class="card">'+
     '<h2>どの演習林を、いつ利用されますか</h2>'+
     '<p class="lead">入力された内容にあわせて、提出が必要な書類と締切をお知らせします。</p>'+
@@ -509,6 +580,16 @@ function previewForms(){
         var g = byFile[k];
         var s = g[0];
         var cls = (s.state==='締切を過ぎている') ? ' near' : '';
+        // ★様式を手元に落とせるようにする。
+        //   「提出してください」と言いながら様式を渡さないのでは、
+        //   提出のしようがない。（2026-08-20 指摘）
+        var link = s.url ?
+          '<a class="formdl" href="'+esc(s.url)+'" target="_blank" rel="noopener">'+
+            FORM_BLANK + '</a>' : '';
+        var filled = hasTemplate(state_forest(), s.form_code) ?
+          '<button class="formdl fill" onclick="dlFilled(' + q(s.form_code) + ')">'+
+            FORM_FILLED + '</button>' : '';
+
         return '<li>'+
           '<span class="code">'+esc(s.form_code)+'</span>'+
           esc(g.map(function(x){return x.name;}).join('・'))+
@@ -518,6 +599,7 @@ function previewForms(){
                         : '　'+esc(s.deadline_label))+
             (s.why ? '　'+esc(s.why) : '')+
           '</span>'+
+          (link || filled ? '<div class="dlrow">'+filled+link+'</div>' : '')+
         '</li>';
       }).join('')+
     '</ul>'+
@@ -729,7 +811,9 @@ function submitApp(){
 
   // 選ばれていた書類を、この申込に紐づけて送る
   Files.flush(appId).then(function(){
-    S.step = 5;
+    // ★申し込みが確定したので、書きかけは消す
+  if(typeof Draft !== 'undefined') Draft.clear('user_app');
+  S.step = 5;
     render();
   });
 }
@@ -742,7 +826,7 @@ function done(){
   '<div class="card">'+
     '<h2>お申し込みを受け付けました</h2>'+
     '<div class="msg ok">受付番号　<b>'+esc(S.appId)+'</b><br>'+
-      'ご登録のメールアドレスに、受付のご連絡をお送りしました。</div>'+
+      'ご入力いただいたメールアドレス宛に、受付のご連絡をお送りしました。</div>'+
     (parts.length>1 ?
       '<h3 style="font-size:14px;margin:18px 0 6px">ご一緒に来られる方の登録状況</h3>'+
       '<table><thead><tr><th>お名前</th><th>状況</th></tr></thead><tbody>'+
@@ -851,6 +935,59 @@ function dateJa(iso){
  *   （2026-08-20 指摘）
  */
 var SHOW_DEV_NOTES = true;
+
+/**
+ * いま選ばれている演習林
+ * ★S.draft と S.forest のどちらを見るかを1か所に決める
+ */
+function state_forest(){
+  return (S.draft && S.draft.forest_id) || S.forest;
+}
+
+/** 文字列を onclick に埋める形にする */
+function q(v){
+  return CHR39 + String(v).replace(/[^0-9A-Za-z_-]/g, EMPTY) + CHR39;
+}
+
+/**
+ * その様式の、記入済みのひな形があるか
+ * ★いまは北海道の様式Bだけ。ほかは順に用意する
+ */
+var TEMPLATE_READY = { HKD: { B: true } };
+
+function hasTemplate(forestId, formCode){
+  var f = TEMPLATE_READY[forestId];
+  return !!(f && f[formCode]);
+}
+
+/**
+ * 入力した内容を差し込んだ様式を作って、手元に落とす
+ *
+ * ★サーバーが要る。手元で動かしているときは、
+ *   白紙の様式をお使いいただく案内を出す。
+ */
+function dlFilled(formCode){
+  if(!S.appId){
+    alert(MSG_NEED_APP);
+    return;
+  }
+  if(typeof RemoteAdapter === UNDEF || !RemoteAdapter.call ||
+     typeof google === UNDEF || !google.script || !google.script.run){
+    alert(MSG_NO_SERVER);
+    return;
+  }
+
+  var code = state_forest() + DASH + formCode;
+  RemoteAdapter.call(RPC_FORM, [S.appId, code]).then(function(r){
+    if(!r || !r.url){ alert(MSG_FORM_FAIL); return; }
+    window.open(r.url, TARGET_BLANK);
+    if(r.missing && r.missing.length){
+      alert(MSG_PARTIAL + r.missing.join(SEP));
+    }
+  })[CATCH](function(e){
+    alert(MSG_FORM_FAIL + NL + (e && e.message ? e.message : EMPTY));
+  });
+}
 
 function devNote(t){
   if(!SHOW_DEV_NOTES) return '';

@@ -29,6 +29,21 @@
   header h1{font-size:17px; margin:0; font-weight:600}
   header .sub{font-size:12px; opacity:.8; margin-top:2px}
 
+  /* 書きかけの案内（F-22 一時保存） */
+  .draft-banner{
+    background:#FFF8E6; border:1px solid #E4D5A8; border-radius:5px;
+    padding:9px 12px; margin-bottom:14px; font-size:13px;
+    display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+  }
+  .draft-when{flex:1; min-width:220px; color:#6B5A22}
+  .draft-btn{
+    border:1px solid #C9B26B; background:#fff; color:#6B5A22;
+    border-radius:4px; padding:4px 12px; font-size:12.5px;
+    cursor:pointer; font-family:inherit;
+  }
+  .draft-btn:hover{background:#FDF6E3}
+  .draft-btn.sub{border-color:#ddd; color:#777}
+
   .wrap{max-width:700px; margin:0 auto; padding:20px 16px 70px}
   .card{background:#fff; border:1px solid var(--line); border-radius:5px;
         padding:20px 22px; margin-bottom:16px}
@@ -102,6 +117,7 @@ if (typeof NL === "undefined") var NL = String.fromCharCode(10);
 <script src="../api/api.js"></script>
 <script src="../api/seed_public.js"></script>
 <script src="../api/forms_seed.js"></script>
+<script src="_draft.js"></script>
 <script>
 /* ------------------------------------------------------------------
    参加者ご本人が、ご自身の情報を登録する画面
@@ -214,7 +230,7 @@ function validate(){
 // ------------------------------------------------ 画面
 
 function init(){
-  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
+  var u = API.adapter().findByKey('M_USER', UID) || {};
   F = {
     name: u.name || '', name_kana: u.name_kana || '',
     org: u.org || '', org_type: u.org_type || '',
@@ -267,10 +283,23 @@ function selectField(key, label, options, opts){
 function render(){
   if(DONE) return renderDone();
 
-  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
-  var myApps = MemoryAdapter.readAll('T_PARTICIPANT')
+  // ★入力の多い画面なので、書きかけを残す。
+  //   ここが F-22（一時保存）の本来の対象。
+  //   打ち直しになると、その場で登録をやめてしまう方が出る。
+  if(typeof Draft !== 'undefined'){
+    Draft.watch('profile_' + UID, function(){ return F; });
+  }
+  var draftHtml = (typeof Draft !== 'undefined')
+    ? Draft.banner('profile_' + UID, function(d){
+        if(d){ F = d; }
+        render();
+      })
+    : '';
+
+  var u = API.adapter().findByKey('M_USER', UID) || {};
+  var myApps = API.adapter().readAll('T_PARTICIPANT')
     .filter(function(p){ return p.user_id === UID; })
-    .map(function(p){ return MemoryAdapter.findByKey('T_APPLICATION', p.app_id); })
+    .map(function(p){ return API.adapter().findByKey('T_APPLICATION', p.app_id); })
     .filter(function(a){ return a; });
   var forests = {};
   API.getMasters().forests.forEach(function(f){ forests[f.forest_id] = f.name; });
@@ -278,6 +307,7 @@ function render(){
   var eb = ERR.birth;
 
   $('view').innerHTML =
+    draftHtml +
   '<div class="card">'+
     '<h2>ご自身の情報をご登録ください</h2>'+
     '<p class="lead">'+esc(u.name || '')+' 様</p>'+
@@ -377,13 +407,16 @@ function submit(){
     birth_date: buildBirth(), nationality: F.nationality,
     allergy: F.allergy, emergency: normalizeTel(F.emergency)
   });
+  // ★登録が済んだので、書きかけは消す
+  if(typeof Draft !== 'undefined') Draft.clear('profile_' + UID);
+
   DONE = true;
   render();
   window.scrollTo(0,0);
 }
 
 function renderDone(){
-  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
+  var u = API.adapter().findByKey('M_USER', UID) || {};
   var age = (function(){
     var b = new Date(u.birth_date), n = new Date();
     var a = n.getFullYear()-b.getFullYear();

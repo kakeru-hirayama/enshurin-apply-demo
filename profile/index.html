@@ -1,6 +1,6 @@
 <!--
   東京大学演習林 利用申込システム　試作
-  2026年08月20日　平山翔湧
+  2026年08月21日　平山翔湧
 
   ★このページのデータはすべて架空のものです。
     実在の利用者・研究課題を示すものではありません。
@@ -38,6 +38,21 @@
   header{background:var(--green); color:#fff; padding:14px 20px}
   header h1{font-size:17px; margin:0; font-weight:600}
   header .sub{font-size:12px; opacity:.8; margin-top:2px}
+
+  /* 書きかけの案内（F-22 一時保存） */
+  .draft-banner{
+    background:#FFF8E6; border:1px solid #E4D5A8; border-radius:5px;
+    padding:9px 12px; margin-bottom:14px; font-size:13px;
+    display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+  }
+  .draft-when{flex:1; min-width:220px; color:#6B5A22}
+  .draft-btn{
+    border:1px solid #C9B26B; background:#fff; color:#6B5A22;
+    border-radius:4px; padding:4px 12px; font-size:12.5px;
+    cursor:pointer; font-family:inherit;
+  }
+  .draft-btn:hover{background:#FDF6E3}
+  .draft-btn.sub{border-color:#ddd; color:#777}
 
   .wrap{max-width:700px; margin:0 auto; padding:20px 16px 70px}
   .card{background:#fff; border:1px solid var(--line); border-radius:5px;
@@ -318,7 +333,16 @@ var SCHEMA = {
       //   途中に入れると、すでに入っているデータが1列ずれる。
       { key: 'staff_memo',  label: '職員メモ',      type: 'text',
         note: '★申込者には見せない。電話で伺ったことなどを書き留める場所。'
-            + 'この欄がないと、職員は別のノートや口頭で引き継ぐことになる' }
+            + 'この欄がないと、職員は別のノートや口頭で引き継ぐことになる' },
+
+      // ---- 未読かどうか（メールソフトと同じ考え方）
+      //
+      //   ★担当の方が1〜2名の施設が多いため、
+      //     「誰かが開いたら既読」という単純な形にする。
+      //     職員ごとに持つと、列が人数分に増えて扱いにくい。
+      { key: 'seen_at',     label: '確認日時',      type: 'datetime',
+        note: '職員がはじめて開いた日時。空なら未読' },
+      { key: 'seen_by',     label: '確認者',        type: 'ref', ref: 'M_STAFF' }
     ]
   },
 
@@ -449,6 +473,44 @@ var SCHEMA = {
       { key: 'used',    label: '使用日時',   type: 'datetime' },
       { key: 'tries',   label: '試行回数',   type: 'number' },
       { key: 'issued',  label: '発行日時',   type: 'datetime' }
+    ]
+  },
+
+  /**
+   * TC  送るのを待っているメール
+   *
+   * ■ なぜ控えておくか
+   *   1日に送れる数には上限がある。
+   *   　無料のGoogleアカウント　　100通
+   *   　Google Workspace（大学）　1,500通
+   *
+   *   実績から見積もると、多い日で数百通になることがある。
+   *   （2025年度の実績で、1日に7,977通に相当する行事があった）
+   *
+   *   上限に達したときに「送れませんでした」で終わらせると、
+   *   その案内は永久に届かない。誰も気づけない。
+   *
+   *   送れなかったものをここに控え、翌日に送り直す。
+   *   職員の画面には「◯通が未送信」と出す。
+   *
+   * ■ 本文を控えることについて
+   *   ★宛先と本文が残る。個人情報を含むため、
+   *     送り終えたものは30日で消す（cleanupMailQueue）。
+   */
+  T_MAIL_QUEUE: {
+    sheet: 'TC_送信待ち',
+    key: null,
+    columns: [
+      { key: 'queued_at', label: '受付日時', type: 'datetime' },
+      { key: 'to',        label: '宛先',     type: 'text' },
+      { key: 'subject',   label: '件名',     type: 'text' },
+      { key: 'body',      label: '本文',     type: 'text' },
+      { key: 'kind',      label: '種類',     type: 'text',
+        note: '受付／招待／ログイン／お知らせ' },
+      { key: 'app_id',    label: '申込',     type: 'text' },
+      { key: 'tries',     label: '試した回数', type: 'number' },
+      { key: 'sent_at',   label: '送信日時', type: 'datetime' },
+      { key: 'error',     label: '最後の失敗', type: 'text' }
     ]
   },
 
@@ -706,6 +768,14 @@ var MemoryAdapter = (function () {
 
 
   /**
+   * 順番待ちの列
+   * ★手元では1人しか使わないので、そのまま実行する。
+   *   ここに同じ名前を用意しておくことで、
+   *   API層は保存先の違いを気にしなくてよくなる。
+   */
+  function withLock(fn) { return fn(); }
+
+  /**
    * 鍵が重なっていないかを確かめる
    *
    * ★鍵のある表に同じ鍵の行が2つできると、
@@ -742,13 +812,46 @@ var MemoryAdapter = (function () {
     });
 
     if (dup.length) {
+      // ★止めない。飛ばして、飛ばしたことを伝える。
+      //
+      //   はじめは例外にしていたが、それだと
+      //   実データの移行が途中で止まってしまう。
+      //   （2026-08-21　実績データの重複66件で実際に止まった）
+      //
+      //   重なった行は入れず、何件飛ばしたかをログに残す。
+      //   入れてしまうより、入れずに知らせるほうがよい。
       var NLC = String.fromCharCode(10);
-      throw new Error(
-        SCHEMA[table].sheet + ' に、すでにある行を入れようとしました（' +
-        dup.length + '件）' + NLC +
-        dup.slice(0, 5).map(function (x) { return '　・' + x; }).join(NLC) +
-        (dup.length > 5 ? NLC + '　　ほか ' + (dup.length - 5) + ' 件' : ''));
+      var msg = SCHEMA[table].sheet + '　すでにある行を ' + dup.length +
+                ' 件飛ばしました' + NLC +
+                dup.slice(0, 3).map(function (x) { return '　・' + x; }).join(NLC) +
+                (dup.length > 3 ? NLC + '　　ほか ' + (dup.length - 3) + ' 件' : '');
+      try { Logger.log(msg); } catch (e) { /* ブラウザ側では出せない */ }
     }
+    return dup;
+  }
+
+  /** 重なっている行を取り除く */
+  function dropDuplicates(table, rows, existing) {
+    var k = SCHEMA[table].key;
+    if (!k) return rows;
+
+    var keyOfRow = function (r) {
+      return Array.isArray(k)
+        ? k.map(function (x) { return r[x]; }).join('/')
+        : r[k];
+    };
+
+    var have = {};
+    (existing || []).forEach(function (r) { have[keyOfRow(r)] = true; });
+
+    var out = [];
+    rows.forEach(function (r) {
+      var key = keyOfRow(r);
+      if (have[key]) return;
+      have[key] = true;
+      out.push(r);
+    });
+    return out;
   }
 
   return {
@@ -777,17 +880,25 @@ var MemoryAdapter = (function () {
     },
 
     insert: function (table, row) {
-      checkKeys(table, [row], ensure(table));
-      ensure(table).push(row);
+      var t = ensure(table);
+      if (dropDuplicates(table, [row], t).length === 0) {
+        checkKeys(table, [row], t);      // ログに残すため
+        return row;                       // すでにあるので、入れない
+      }
+      t.push(row);
       return row;
     },
 
-    /** まとめて足す。移行や初期投入で使う */
+    /**
+     * まとめて足す。移行や初期投入で使う
+     * ★すでにある行は飛ばす。止めない
+     */
     insertMany: function (table, rows) {
       var t = ensure(table);
-      checkKeys(table, rows, t);
-      rows.forEach(function (r) { t.push(r); });
-      return rows.length;
+      checkKeys(table, rows, t);          // 何件重なるかをログに残す
+      var use = dropDuplicates(table, rows, t);
+      use.forEach(function (r) { t.push(r); });
+      return use.length;
     },
 
     update: function (table, key, patch) {
@@ -838,6 +949,7 @@ var MemoryAdapter = (function () {
     },
 
     /** 開発用。中身を空にする */
+    withLock: withLock,
     reset: function () { db = {}; },
 
     /** 開発用。中身を丸ごと見る */
@@ -1038,17 +1150,24 @@ var API = (function () {
     }
 
     if (isNew) {
-      var prefix = fiscalYear(data.date_from || today()) + '-' + data.forest_id + '-';
-      data.app_id = db.nextId('T_APPLICATION', prefix);
-      data.created_at = now();
-      data.applied_at = data.applied_at || today();
-      data.status = data.status || firstStatusOf(data.forest_id);
-    }
-    data.updated_at = now();
+      // ★採番と書き込みは、ひとまとめにして行う。
+      //   間に他の方が割り込むと、同じ受付番号が2件できてしまう。
+      //   順番待ちの列があるかどうかは保存先によって違うので、
+      //   無ければそのまま実行する。
+      var lock = db.withLock || function (fn) { return fn(); };
 
-    if (isNew) {
-      db.insert('T_APPLICATION', data);
+      lock(function () {
+        var prefix = fiscalYear(data.date_from || today()) +
+                     '-' + data.forest_id + '-';
+        data.app_id = db.nextId('T_APPLICATION', prefix);
+        data.created_at = now();
+        data.applied_at = data.applied_at || today();
+        data.status = data.status || firstStatusOf(data.forest_id);
+        data.updated_at = now();
+        db.insert('T_APPLICATION', data);
+      });
     } else {
+      data.updated_at = now();
       db.update('T_APPLICATION', data.app_id, data);
     }
 
@@ -1143,6 +1262,43 @@ var API = (function () {
     var p = ym.split('-');
     var d = new Date(Number(p[0]), Number(p[1]), 0);   // 翌月の0日＝当月末
     return ('0' + d.getDate()).slice(-2);
+  }
+
+  /**
+   * 職員が申込を開いたことを記録する
+   *
+   * ■ なぜ要るか
+   *   紙で運用しておられたときは、机の上に置いてあるかどうかで
+   *   「まだ見ていないもの」が分かった。
+   *   画面になると、その手がかりがなくなる。
+   *
+   *   メールソフトと同じ考え方で、未読と既読を分ける。
+   *
+   * ★担当の方が1〜2名の施設が多いため、
+   *   「誰かが開いたら既読」という単純な形にする。
+   *   職員ごとに持つと、列が人数分に増えて扱いにくい。
+   */
+  function markSeen(appId, staffId) {
+    var a = db.findByKey('T_APPLICATION', appId);
+    if (!a) return { ok: false, error: '申込が見つかりません' };
+    if (a.seen_at) return { ok: true, already: true };   // すでに既読
+
+    db.update('T_APPLICATION', appId, {
+      seen_at: now(),
+      seen_by: staffId || ''
+    });
+    return { ok: true, already: false };
+  }
+
+  /**
+   * まだ誰も開いていない申込の件数
+   * @param {string} forestId  空なら全演習林
+   */
+  function countUnseen(forestId) {
+    return db.readAll('T_APPLICATION').filter(function (a) {
+      if (forestId && a.forest_id !== forestId) return false;
+      return !a.seen_at;
+    }).length;
   }
 
   function firstStatusOf(forestId) {
@@ -1377,6 +1533,11 @@ var API = (function () {
    * ★代表者はこの内容を見られない
    */
   function saveMyProfile(userId, data) {
+    // ★画面側だけの確認では、迂回できてしまう。
+    //   ここでも同じことを確かめる。
+    //   （2026-08-21　画面には確認があったが、ここには無かった）
+    checkProfile(data);
+
     var allowed = ['name', 'name_kana', 'org', 'org_type', 'status_type',
                    'gender', 'birth_date', 'nationality', 'allergy', 'emergency'];
     var patch = { updated_at: now() };
@@ -1391,6 +1552,78 @@ var API = (function () {
         db.update('T_PARTICIPANT', [p.app_id, p.user_id],
                   { reg_status: '登録済', registered_at: now() });
       });
+    return true;
+  }
+
+  /**
+   * ご本人が登録された内容を確かめる
+   *
+   * ★画面と同じことを、こちらでも確かめる。
+   *   画面の確認は、開発者ツールから迂回できる。
+   *   足りないまま入ると、当日になって
+   *   「緊急連絡先が分からない」ということが起きる。
+   */
+  function checkProfile(data) {
+    var ng = [];
+    var NLC = String.fromCharCode(10);
+
+    var need = [
+      ['name',        '氏名'],
+      ['name_kana',   'ふりがな'],
+      ['org',         'ご所属'],
+      ['org_type',    '所属の区分'],
+      ['status_type', '身分'],
+      ['gender',      '性別'],
+      ['birth_date',  '生年月日'],
+      ['nationality', '国籍・出身国'],
+      ['emergency',   '緊急連絡先']
+    ];
+
+    need.forEach(function (r) {
+      if (!String(data[r[0]] || '').trim()) {
+        ng.push(r[1] + 'が空です');
+      }
+    });
+
+    // 生年月日　実在する日か
+    var b = String(data.birth_date || '');
+    if (b && !isDate(b)) {
+      ng.push('生年月日が正しくありません　' + b);
+    } else if (b) {
+      var y = Number(b.slice(0, 4));
+      var thisYear = new Date().getFullYear();
+      if (y < thisYear - 120 || y > thisYear) {
+        ng.push('生年月日の年をご確認ください　' + b);
+      }
+    }
+
+    // 電話番号　数字の桁数だけを見る
+    var tel = String(data.emergency || '').replace(/[^0-9]/g, '');
+    if (tel && (tel.length < 9 || tel.length > 11)) {
+      ng.push('緊急連絡先の桁数をご確認ください');
+    }
+
+    // ふりがな
+    if (data.name_kana && !/^[ぁ-んー\s　]+$/.test(String(data.name_kana))) {
+      ng.push('ふりがなは、ひらがなでご入力ください');
+    }
+
+    // 選択肢にある値か
+    [['org_type', 'ORG_TYPE'], ['status_type', 'STATUS_TYPE'],
+     ['gender', 'GENDER']].forEach(function (p) {
+      var v = data[p[0]];
+      if (!v) return;
+      var list = OPTIONS[p[1]];
+      if (list && list.indexOf(v) < 0) {
+        ng.push(p[0] + ' に知らない値が入っています　' + v);
+      }
+    });
+
+    if (ng.length) {
+      throw new Error(
+        'ご登録の内容に足りないところがあります' + NLC +
+        ng.map(function (x) { return '　・' + x; }).join(NLC));
+    }
     return true;
   }
 
@@ -1621,11 +1854,19 @@ var API = (function () {
       var days = db.readAll('T_USAGE_DAY').filter(function (d) {
         return d.app_id === a.app_id && d.date >= from && d.date <= to;
       });
+      // ★その年度に入る日の分だけを数える。
+      //
+      //   年度をまたぐ申込がある（2025年度の実績で9件）。
+      //   日付で絞らないと、同じ人数が2つの年度の年報に
+      //   まるごと出てしまう。
+      //   例　2025-TNS-0053（2025-07-28 〜 2027-03-31）の73人が、
+      //   　　2025年度にも2026年度にも73人として出ていた。
+      //   （2026-08-21 に判明）
       var heads = db.readAll('T_HEADCOUNT').filter(function (h) {
-        return h.app_id === a.app_id;
+        return h.app_id === a.app_id && h.date >= from && h.date <= to;
       });
       var lodges = db.readAll('T_LODGING').filter(function (l) {
-        return l.app_id === a.app_id;
+        return l.app_id === a.app_id && l.date >= from && l.date <= to;
       });
 
       var g = { '教職員': 0, '学生': 0, '院生': 0, 'その他': 0 };
@@ -1725,6 +1966,8 @@ var API = (function () {
     getApplication: getApplication,
     saveApplication: saveApplication,
     updateStatus: updateStatus,
+    markSeen: markSeen,
+    countUnseen: countUnseen,
 
     // 日付と施設
     getCalendar: getCalendar,
@@ -2593,6 +2836,180 @@ var FORMS_SEED = [
 
 </script>
 <script>
+/* ===== _draft.js ===== */
+/**
+ * _draft.js  書きかけの内容を残す（F-22 一時保存）
+ *
+ * ■ なぜ要るか
+ *   利用者名簿のように入力の多い画面で、
+ *   画面を閉じたり、通信が切れたりすると、書いたものが全部消える。
+ *   もう一度はじめから打ち直すことになり、
+ *   その時点で申込をやめてしまう方が出る。
+ *
+ * ■ どこに残すか
+ *   ★ブラウザの中（localStorage）に残す。サーバーには送らない。
+ *
+ *   理由は2つ。
+ *   　・書きかけの内容には、まだ確かめていない個人情報が入る。
+ *   　　送ってしまうと、送った先に消す責任が生まれる
+ *   　・通信が切れているときにこそ必要なので、
+ *   　　サーバーに置くと肝心なときに使えない
+ *
+ * ■ いつ消すか
+ *   申し込みが確定したとき。
+ *   それと、7日たったもの（古い書きかけは、かえって混乱のもとになる）。
+ *
+ * ■ 使い方
+ *   Draft.save('user', S.draft)      残す
+ *   Draft.load('user')               取り出す（無ければ null）
+ *   Draft.clear('user')              消す
+ *   Draft.watch('user', function(){ return S.draft; })   自動で残す
+ */
+
+var Draft = (function () {
+
+  var PREFIX = 'enshurin_draft_';
+  var KEEP_DAYS = 7;
+  var timers = {};
+
+  function key(name) { return PREFIX + name; }
+
+  function nowMs() { return Date.now(); }
+
+  /** 残す */
+  function save(name, data) {
+    try {
+      localStorage.setItem(key(name), JSON.stringify({
+        at: nowMs(),
+        data: data
+      }));
+      return true;
+    } catch (e) {
+      // ブラウザの設定で使えないことがある。
+      // ★使えなくても、画面の動きは止めない。
+      return false;
+    }
+  }
+
+  /** 取り出す。無ければ null */
+  function load(name) {
+    try {
+      var raw = localStorage.getItem(key(name));
+      if (!raw) return null;
+      var o = JSON.parse(raw);
+      if (!o || !o.at) return null;
+
+      // 古いものは使わない
+      if (nowMs() - o.at > KEEP_DAYS * 86400000) {
+        clear(name);
+        return null;
+      }
+      return o.data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** いつ残したものか */
+  function savedAt(name) {
+    try {
+      var raw = localStorage.getItem(key(name));
+      if (!raw) return null;
+      var o = JSON.parse(raw);
+      return o && o.at ? new Date(o.at) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function clear(name) {
+    try { localStorage.removeItem(key(name)); } catch (e) {}
+  }
+
+  /**
+   * 自動で残す
+   *
+   * ★入力のたびに残すと重い。少し待ってからまとめて残す。
+   *
+   * @param {string} name   残す先の名前
+   * @param {Function} get  そのときの内容を返す関数
+   * @param {number} ms     待つ時間（既定 800ミリ秒）
+   */
+  function watch(name, get, ms) {
+    ms = ms || 800;
+    if (timers[name]) clearTimeout(timers[name]);
+    timers[name] = setTimeout(function () {
+      timers[name] = null;
+      try { save(name, get()); } catch (e) {}
+    }, ms);
+  }
+
+  /**
+   * 「書きかけがあります」の案内を出す
+   *
+   * ★勝手に戻さない。戻すかどうかは、ご本人に選んでいただく。
+   *   前に書いたものが黙って現れると、
+   *   いま書いているものが消えたように見えることがある。
+   *
+   * @param {string} name
+   * @param {Function} onRestore  戻すときに呼ぶ
+   * @return {string}  画面に入れるHTML（書きかけが無ければ空）
+   */
+  function banner(name, onRestore) {
+    var at = savedAt(name);
+    if (!at) return '';
+
+    // 画面から呼べるようにしておく
+    Draft._restore = Draft._restore || {};
+    Draft._restore[name] = onRestore;
+
+    var when = fmt(at);
+    return '<div class="draft-banner">' +
+      '<span class="draft-when">' + when + ' に書きかけの内容が残っています。</span>' +
+      '<button class="draft-btn" onclick="Draft.restore(\'' + name + '\')">' +
+        '続きから書く</button>' +
+      '<button class="draft-btn sub" onclick="Draft.discard(\'' + name + '\')">' +
+        '消して新しく書く</button>' +
+    '</div>';
+  }
+
+  function restore(name) {
+    var fn = Draft._restore && Draft._restore[name];
+    if (fn) fn(load(name));
+  }
+
+  function discard(name) {
+    clear(name);
+    var fn = Draft._restore && Draft._restore[name];
+    if (fn) fn(null);
+  }
+
+  function fmt(d) {
+    function p(n) { return ('0' + n).slice(-2); }
+    var today = new Date();
+    var sameDay = d.getFullYear() === today.getFullYear() &&
+                  d.getMonth() === today.getMonth() &&
+                  d.getDate() === today.getDate();
+    if (sameDay) return '本日 ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' +
+           p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  return {
+    save: save,
+    load: load,
+    clear: clear,
+    savedAt: savedAt,
+    watch: watch,
+    banner: banner,
+    restore: restore,
+    discard: discard,
+    KEEP_DAYS: KEEP_DAYS
+  };
+})();
+
+</script>
+<script>
 /* ------------------------------------------------------------------
    参加者ご本人が、ご自身の情報を登録する画面
 
@@ -2704,7 +3121,7 @@ function validate(){
 // ------------------------------------------------ 画面
 
 function init(){
-  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
+  var u = API.adapter().findByKey('M_USER', UID) || {};
   F = {
     name: u.name || '', name_kana: u.name_kana || '',
     org: u.org || '', org_type: u.org_type || '',
@@ -2757,10 +3174,23 @@ function selectField(key, label, options, opts){
 function render(){
   if(DONE) return renderDone();
 
-  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
-  var myApps = MemoryAdapter.readAll('T_PARTICIPANT')
+  // ★入力の多い画面なので、書きかけを残す。
+  //   ここが F-22（一時保存）の本来の対象。
+  //   打ち直しになると、その場で登録をやめてしまう方が出る。
+  if(typeof Draft !== 'undefined'){
+    Draft.watch('profile_' + UID, function(){ return F; });
+  }
+  var draftHtml = (typeof Draft !== 'undefined')
+    ? Draft.banner('profile_' + UID, function(d){
+        if(d){ F = d; }
+        render();
+      })
+    : '';
+
+  var u = API.adapter().findByKey('M_USER', UID) || {};
+  var myApps = API.adapter().readAll('T_PARTICIPANT')
     .filter(function(p){ return p.user_id === UID; })
-    .map(function(p){ return MemoryAdapter.findByKey('T_APPLICATION', p.app_id); })
+    .map(function(p){ return API.adapter().findByKey('T_APPLICATION', p.app_id); })
     .filter(function(a){ return a; });
   var forests = {};
   API.getMasters().forests.forEach(function(f){ forests[f.forest_id] = f.name; });
@@ -2768,6 +3198,7 @@ function render(){
   var eb = ERR.birth;
 
   $('view').innerHTML =
+    draftHtml +
   '<div class="card">'+
     '<h2>ご自身の情報をご登録ください</h2>'+
     '<p class="lead">'+esc(u.name || '')+' 様</p>'+
@@ -2867,13 +3298,16 @@ function submit(){
     birth_date: buildBirth(), nationality: F.nationality,
     allergy: F.allergy, emergency: normalizeTel(F.emergency)
   });
+  // ★登録が済んだので、書きかけは消す
+  if(typeof Draft !== 'undefined') Draft.clear('profile_' + UID);
+
   DONE = true;
   render();
   window.scrollTo(0,0);
 }
 
 function renderDone(){
-  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
+  var u = API.adapter().findByKey('M_USER', UID) || {};
   var age = (function(){
     var b = new Date(u.birth_date), n = new Date();
     var a = n.getFullYear()-b.getFullYear();

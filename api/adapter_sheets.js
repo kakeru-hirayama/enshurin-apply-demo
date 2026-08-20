@@ -163,13 +163,46 @@ var SheetsAdapter = (function () {
     });
 
     if (dup.length) {
+      // ★止めない。飛ばして、飛ばしたことを伝える。
+      //
+      //   はじめは例外にしていたが、それだと
+      //   実データの移行が途中で止まってしまう。
+      //   （2026-08-21　実績データの重複66件で実際に止まった）
+      //
+      //   重なった行は入れず、何件飛ばしたかをログに残す。
+      //   入れてしまうより、入れずに知らせるほうがよい。
       var NLC = String.fromCharCode(10);
-      throw new Error(
-        SCHEMA[table].sheet + ' に、すでにある行を入れようとしました（' +
-        dup.length + '件）' + NLC +
-        dup.slice(0, 5).map(function (x) { return '　・' + x; }).join(NLC) +
-        (dup.length > 5 ? NLC + '　　ほか ' + (dup.length - 5) + ' 件' : ''));
+      var msg = SCHEMA[table].sheet + '　すでにある行を ' + dup.length +
+                ' 件飛ばしました' + NLC +
+                dup.slice(0, 3).map(function (x) { return '　・' + x; }).join(NLC) +
+                (dup.length > 3 ? NLC + '　　ほか ' + (dup.length - 3) + ' 件' : '');
+      try { Logger.log(msg); } catch (e) { /* ブラウザ側では出せない */ }
     }
+    return dup;
+  }
+
+  /** 重なっている行を取り除く */
+  function dropDuplicates(table, rows, existing) {
+    var k = SCHEMA[table].key;
+    if (!k) return rows;
+
+    var keyOfRow = function (r) {
+      return Array.isArray(k)
+        ? k.map(function (x) { return r[x]; }).join('/')
+        : r[k];
+    };
+
+    var have = {};
+    (existing || []).forEach(function (r) { have[keyOfRow(r)] = true; });
+
+    var out = [];
+    rows.forEach(function (r) {
+      var key = keyOfRow(r);
+      if (have[key]) return;
+      have[key] = true;
+      out.push(r);
+    });
+    return out;
   }
 
   return {
@@ -197,7 +230,11 @@ var SheetsAdapter = (function () {
     },
 
     insert: function (table, row) {
-      checkKeys(table, [row], load(table));
+      var have = load(table);
+      if (dropDuplicates(table, [row], have).length === 0) {
+        checkKeys(table, [row], have);    // ログに残すため
+        return row;                        // すでにあるので、入れない
+      }
       var sh = sheetOf(table);
       sh.appendRow(rowToArray(table, row));
       delete cache[table];
@@ -208,7 +245,11 @@ var SheetsAdapter = (function () {
     insertMany: function (table, rows) {
       if (!rows.length) return 0;
       // ★読み込みは1回で済ませる。1行ずつ確かめると遅い
-      checkKeys(table, rows, load(table));
+      var have = load(table);
+      checkKeys(table, rows, have);       // 何件重なるかをログに残す
+      rows = dropDuplicates(table, rows, have);
+      if (!rows.length) return 0;
+
       var sh = sheetOf(table);
       var start = sh.getLastRow() + 1;
       var values = rows.map(function (r) { return rowToArray(table, r); });
@@ -296,6 +337,33 @@ var SheetsAdapter = (function () {
       sheetOf(table).deleteRow(index + 2);
       cache = {};
       return true;
+    },
+
+    /**
+     * 順番待ちの列に並んでから実行する
+     *
+     * ★同時に2人が申し込むと、両方が「次は0002番」と読んでしまう。
+     *   採番と書き込みの間に、他の人が割り込めないようにする。
+     *
+     *   待つのは最大30秒。それを超えたら、待っていただくより
+     *   はっきり伝えたほうがよい。
+     *
+     * @param {Function} fn  中で行うこと
+     */
+    withLock: function (fn) {
+      var lock = LockService.getScriptLock();
+      try {
+        lock.waitLock(30000);
+      } catch (e) {
+        throw new Error(
+          'ただいま混み合っております。少し時間をおいて、もう一度お試しください。');
+      }
+      try {
+        cache = {};             // 待っている間に他の人が書いたかもしれない
+        return fn();
+      } finally {
+        lock.releaseLock();
+      }
     },
 
     /** 読み込みの結果を捨てる。書き込みの後に自動で呼ばれる */

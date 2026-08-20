@@ -38,6 +38,14 @@ var MemoryAdapter = (function () {
 
 
   /**
+   * 順番待ちの列
+   * ★手元では1人しか使わないので、そのまま実行する。
+   *   ここに同じ名前を用意しておくことで、
+   *   API層は保存先の違いを気にしなくてよくなる。
+   */
+  function withLock(fn) { return fn(); }
+
+  /**
    * 鍵が重なっていないかを確かめる
    *
    * ★鍵のある表に同じ鍵の行が2つできると、
@@ -74,13 +82,46 @@ var MemoryAdapter = (function () {
     });
 
     if (dup.length) {
+      // ★止めない。飛ばして、飛ばしたことを伝える。
+      //
+      //   はじめは例外にしていたが、それだと
+      //   実データの移行が途中で止まってしまう。
+      //   （2026-08-21　実績データの重複66件で実際に止まった）
+      //
+      //   重なった行は入れず、何件飛ばしたかをログに残す。
+      //   入れてしまうより、入れずに知らせるほうがよい。
       var NLC = String.fromCharCode(10);
-      throw new Error(
-        SCHEMA[table].sheet + ' に、すでにある行を入れようとしました（' +
-        dup.length + '件）' + NLC +
-        dup.slice(0, 5).map(function (x) { return '　・' + x; }).join(NLC) +
-        (dup.length > 5 ? NLC + '　　ほか ' + (dup.length - 5) + ' 件' : ''));
+      var msg = SCHEMA[table].sheet + '　すでにある行を ' + dup.length +
+                ' 件飛ばしました' + NLC +
+                dup.slice(0, 3).map(function (x) { return '　・' + x; }).join(NLC) +
+                (dup.length > 3 ? NLC + '　　ほか ' + (dup.length - 3) + ' 件' : '');
+      try { Logger.log(msg); } catch (e) { /* ブラウザ側では出せない */ }
     }
+    return dup;
+  }
+
+  /** 重なっている行を取り除く */
+  function dropDuplicates(table, rows, existing) {
+    var k = SCHEMA[table].key;
+    if (!k) return rows;
+
+    var keyOfRow = function (r) {
+      return Array.isArray(k)
+        ? k.map(function (x) { return r[x]; }).join('/')
+        : r[k];
+    };
+
+    var have = {};
+    (existing || []).forEach(function (r) { have[keyOfRow(r)] = true; });
+
+    var out = [];
+    rows.forEach(function (r) {
+      var key = keyOfRow(r);
+      if (have[key]) return;
+      have[key] = true;
+      out.push(r);
+    });
+    return out;
   }
 
   return {
@@ -109,17 +150,25 @@ var MemoryAdapter = (function () {
     },
 
     insert: function (table, row) {
-      checkKeys(table, [row], ensure(table));
-      ensure(table).push(row);
+      var t = ensure(table);
+      if (dropDuplicates(table, [row], t).length === 0) {
+        checkKeys(table, [row], t);      // ログに残すため
+        return row;                       // すでにあるので、入れない
+      }
+      t.push(row);
       return row;
     },
 
-    /** まとめて足す。移行や初期投入で使う */
+    /**
+     * まとめて足す。移行や初期投入で使う
+     * ★すでにある行は飛ばす。止めない
+     */
     insertMany: function (table, rows) {
       var t = ensure(table);
-      checkKeys(table, rows, t);
-      rows.forEach(function (r) { t.push(r); });
-      return rows.length;
+      checkKeys(table, rows, t);          // 何件重なるかをログに残す
+      var use = dropDuplicates(table, rows, t);
+      use.forEach(function (r) { t.push(r); });
+      return use.length;
     },
 
     update: function (table, key, patch) {
@@ -170,6 +219,7 @@ var MemoryAdapter = (function () {
     },
 
     /** 開発用。中身を空にする */
+    withLock: withLock,
     reset: function () { db = {}; },
 
     /** 開発用。中身を丸ごと見る */

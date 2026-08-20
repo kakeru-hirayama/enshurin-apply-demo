@@ -35,20 +35,70 @@ var Mailer = (function () {
     return u || '（未設定）';
   }
 
-  function send(to, subject, body) {
+  /**
+   * 送る
+   *
+   * ★上限に達したときに「送れませんでした」で終わらせない。
+   *   終わらせると、その案内は永久に届かず、誰も気づけない。
+   *   控えておいて、翌日に送り直す。
+   *
+   * @param {string} to      宛先
+   * @param {string} subject 件名
+   * @param {string} body    本文
+   * @param {Object} meta    { kind, app_id }　控えるときに使う
+   */
+  function send(to, subject, body, meta) {
     if (DRY_RUN) {
-      Logger.log('［送信せず］宛先 ' + to + '\n件名 ' + subject + '\n' + body);
+      Logger.log('［送信せず］宛先 ' + to + NL + '件名 ' + subject + NL + body);
       return { ok: true, dry: true };
     }
-    MailApp.sendEmail({
-      to: to,
-      subject: subject,
-      body: body,
-      name: SENDER_NAME,
-      noReply: false
-    });
-    remaining();
-    return { ok: true, dry: false };
+
+    // ---- 残りがなければ、送らずに控える
+    var left = MailApp.getRemainingDailyQuota();
+    if (left <= 0) {
+      queue(to, subject, body, meta, '本日の送信可能数がありません');
+      return { ok: true, queued: true, reason: '上限' };
+    }
+
+    try {
+      MailApp.sendEmail({
+        to: to, subject: subject, body: body,
+        name: SENDER_NAME, noReply: false
+      });
+    } catch (e) {
+      // ★失敗しても捨てない。控えて翌日に回す
+      queue(to, subject, body, meta, e.message);
+      return { ok: true, queued: true, reason: e.message };
+    }
+
+    if (left - 1 < 50) {
+      Logger.log('★本日の送信可能数が残り ' + (left - 1) + ' 通です');
+    }
+    return { ok: true, dry: false, queued: false };
+  }
+
+  /** 送れなかったものを控える */
+  function queue(to, subject, body, meta, why) {
+    meta = meta || {};
+    try {
+      SheetsAdapter.insert('T_MAIL_QUEUE', {
+        queued_at: nowStr(),
+        to: to, subject: subject, body: body,
+        kind: meta.kind || '',
+        app_id: meta.app_id || '',
+        tries: 1,
+        sent_at: '',
+        error: why || ''
+      });
+      Logger.log('送信を控えました　' + to + '　' + (why || ''));
+    } catch (e) {
+      // ★控えることすらできないときは、記録だけは残す
+      Logger.log('★送信も記録もできませんでした　' + to + '　' + e.message);
+    }
+  }
+
+  function nowStr() {
+    return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
   }
 
   function remaining() {
@@ -225,9 +275,101 @@ var Mailer = (function () {
       approved: approved,
       reminder: reminder
     },
-    setDryRun: function (v) { DRY_RUN = v; }
+    setDryRun: function (v) { DRY_RUN = v; },
+    isDryRun: function () { return DRY_RUN; },
+    queue: queue
   };
 })();
+
+
+/**
+ * 控えてあるメールを送り直す
+ *
+ * ★時間で自動実行するトリガーに設定して、毎朝動かす。
+ *   前の日に送れなかったものが、翌朝に届く。
+ */
+function retryMailQueue() {
+  var NLC = String.fromCharCode(10);
+  var rows = SheetsAdapter.readAll('T_MAIL_QUEUE');
+  var waiting = [];
+  rows.forEach(function (r, i) {
+    if (!r.sent_at) waiting.push({ row: r, at: i });
+  });
+
+  if (!waiting.length) {
+    Logger.log('送信を待っているものはありません');
+    return { sent: 0, left: 0 };
+  }
+
+  var quota = MailApp.getRemainingDailyQuota();
+  var sent = 0, failed = 0;
+
+  for (var i = 0; i < waiting.length; i++) {
+    if (quota <= 5) break;              // 少し残しておく
+    var w = waiting[i];
+    try {
+      MailApp.sendEmail({
+        to: w.row.to, subject: w.row.subject, body: w.row.body,
+        name: '東京大学演習林 利用申込', noReply: false
+      });
+      SheetsAdapter.updateAt('T_MAIL_QUEUE', w.at, {
+        sent_at: Utilities.formatDate(new Date(), 'Asia/Tokyo',
+                                      'yyyy-MM-dd HH:mm:ss'),
+        error: ''
+      });
+      sent++;
+      quota--;
+    } catch (e) {
+      SheetsAdapter.updateAt('T_MAIL_QUEUE', w.at, {
+        tries: Number(w.row.tries || 0) + 1,
+        error: e.message
+      });
+      failed++;
+    }
+  }
+
+  var left = waiting.length - sent;
+  var log = ['控えてあったメールを送りました', '',
+             '　送れた　　' + sent + ' 通',
+             '　残り　　　' + left + ' 通',
+             '　失敗　　　' + failed + ' 通',
+             '　本日の残り送信可能数　' + MailApp.getRemainingDailyQuota() + ' 通'];
+  if (left > 0) {
+    log.push('');
+    log.push('★まだ ' + left + ' 通が残っています。明日また送ります。');
+  }
+  Logger.log(log.join(NLC));
+  return { sent: sent, left: left, failed: failed };
+}
+
+
+/**
+ * 送り終えた控えを片づける
+ * ★宛先と本文が残っている。個人情報を含むため、長く置かない。
+ */
+function cleanupMailQueue() {
+  var limit = Utilities.formatDate(
+    new Date(Date.now() - 30 * 86400000), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm:ss');
+  var rows = SheetsAdapter.readAll('T_MAIL_QUEUE');
+  var n = 0;
+  for (var i = rows.length - 1; i >= 0; i--) {
+    if (rows[i].sent_at && String(rows[i].sent_at) < limit) {
+      SheetsAdapter.removeAt('T_MAIL_QUEUE', i);
+      n++;
+    }
+  }
+  Logger.log('送り終えた控えを ' + n + ' 件片づけました（30日より前のもの）');
+  return n;
+}
+
+
+/** いま何通が送信を待っているか */
+function countMailQueue() {
+  var rows = SheetsAdapter.readAll('T_MAIL_QUEUE');
+  var waiting = rows.filter(function (r) { return !r.sent_at; });
+  Logger.log('送信を待っているメール　' + waiting.length + ' 通');
+  return waiting.length;
+}
 
 
 /**

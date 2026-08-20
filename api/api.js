@@ -188,17 +188,24 @@ var API = (function () {
     }
 
     if (isNew) {
-      var prefix = fiscalYear(data.date_from || today()) + '-' + data.forest_id + '-';
-      data.app_id = db.nextId('T_APPLICATION', prefix);
-      data.created_at = now();
-      data.applied_at = data.applied_at || today();
-      data.status = data.status || firstStatusOf(data.forest_id);
-    }
-    data.updated_at = now();
+      // ★採番と書き込みは、ひとまとめにして行う。
+      //   間に他の方が割り込むと、同じ受付番号が2件できてしまう。
+      //   順番待ちの列があるかどうかは保存先によって違うので、
+      //   無ければそのまま実行する。
+      var lock = db.withLock || function (fn) { return fn(); };
 
-    if (isNew) {
-      db.insert('T_APPLICATION', data);
+      lock(function () {
+        var prefix = fiscalYear(data.date_from || today()) +
+                     '-' + data.forest_id + '-';
+        data.app_id = db.nextId('T_APPLICATION', prefix);
+        data.created_at = now();
+        data.applied_at = data.applied_at || today();
+        data.status = data.status || firstStatusOf(data.forest_id);
+        data.updated_at = now();
+        db.insert('T_APPLICATION', data);
+      });
     } else {
+      data.updated_at = now();
       db.update('T_APPLICATION', data.app_id, data);
     }
 
@@ -293,6 +300,43 @@ var API = (function () {
     var p = ym.split('-');
     var d = new Date(Number(p[0]), Number(p[1]), 0);   // 翌月の0日＝当月末
     return ('0' + d.getDate()).slice(-2);
+  }
+
+  /**
+   * 職員が申込を開いたことを記録する
+   *
+   * ■ なぜ要るか
+   *   紙で運用しておられたときは、机の上に置いてあるかどうかで
+   *   「まだ見ていないもの」が分かった。
+   *   画面になると、その手がかりがなくなる。
+   *
+   *   メールソフトと同じ考え方で、未読と既読を分ける。
+   *
+   * ★担当の方が1〜2名の施設が多いため、
+   *   「誰かが開いたら既読」という単純な形にする。
+   *   職員ごとに持つと、列が人数分に増えて扱いにくい。
+   */
+  function markSeen(appId, staffId) {
+    var a = db.findByKey('T_APPLICATION', appId);
+    if (!a) return { ok: false, error: '申込が見つかりません' };
+    if (a.seen_at) return { ok: true, already: true };   // すでに既読
+
+    db.update('T_APPLICATION', appId, {
+      seen_at: now(),
+      seen_by: staffId || ''
+    });
+    return { ok: true, already: false };
+  }
+
+  /**
+   * まだ誰も開いていない申込の件数
+   * @param {string} forestId  空なら全演習林
+   */
+  function countUnseen(forestId) {
+    return db.readAll('T_APPLICATION').filter(function (a) {
+      if (forestId && a.forest_id !== forestId) return false;
+      return !a.seen_at;
+    }).length;
   }
 
   function firstStatusOf(forestId) {
@@ -527,6 +571,11 @@ var API = (function () {
    * ★代表者はこの内容を見られない
    */
   function saveMyProfile(userId, data) {
+    // ★画面側だけの確認では、迂回できてしまう。
+    //   ここでも同じことを確かめる。
+    //   （2026-08-21　画面には確認があったが、ここには無かった）
+    checkProfile(data);
+
     var allowed = ['name', 'name_kana', 'org', 'org_type', 'status_type',
                    'gender', 'birth_date', 'nationality', 'allergy', 'emergency'];
     var patch = { updated_at: now() };
@@ -541,6 +590,78 @@ var API = (function () {
         db.update('T_PARTICIPANT', [p.app_id, p.user_id],
                   { reg_status: '登録済', registered_at: now() });
       });
+    return true;
+  }
+
+  /**
+   * ご本人が登録された内容を確かめる
+   *
+   * ★画面と同じことを、こちらでも確かめる。
+   *   画面の確認は、開発者ツールから迂回できる。
+   *   足りないまま入ると、当日になって
+   *   「緊急連絡先が分からない」ということが起きる。
+   */
+  function checkProfile(data) {
+    var ng = [];
+    var NLC = String.fromCharCode(10);
+
+    var need = [
+      ['name',        '氏名'],
+      ['name_kana',   'ふりがな'],
+      ['org',         'ご所属'],
+      ['org_type',    '所属の区分'],
+      ['status_type', '身分'],
+      ['gender',      '性別'],
+      ['birth_date',  '生年月日'],
+      ['nationality', '国籍・出身国'],
+      ['emergency',   '緊急連絡先']
+    ];
+
+    need.forEach(function (r) {
+      if (!String(data[r[0]] || '').trim()) {
+        ng.push(r[1] + 'が空です');
+      }
+    });
+
+    // 生年月日　実在する日か
+    var b = String(data.birth_date || '');
+    if (b && !isDate(b)) {
+      ng.push('生年月日が正しくありません　' + b);
+    } else if (b) {
+      var y = Number(b.slice(0, 4));
+      var thisYear = new Date().getFullYear();
+      if (y < thisYear - 120 || y > thisYear) {
+        ng.push('生年月日の年をご確認ください　' + b);
+      }
+    }
+
+    // 電話番号　数字の桁数だけを見る
+    var tel = String(data.emergency || '').replace(/[^0-9]/g, '');
+    if (tel && (tel.length < 9 || tel.length > 11)) {
+      ng.push('緊急連絡先の桁数をご確認ください');
+    }
+
+    // ふりがな
+    if (data.name_kana && !/^[ぁ-んー\s　]+$/.test(String(data.name_kana))) {
+      ng.push('ふりがなは、ひらがなでご入力ください');
+    }
+
+    // 選択肢にある値か
+    [['org_type', 'ORG_TYPE'], ['status_type', 'STATUS_TYPE'],
+     ['gender', 'GENDER']].forEach(function (p) {
+      var v = data[p[0]];
+      if (!v) return;
+      var list = OPTIONS[p[1]];
+      if (list && list.indexOf(v) < 0) {
+        ng.push(p[0] + ' に知らない値が入っています　' + v);
+      }
+    });
+
+    if (ng.length) {
+      throw new Error(
+        'ご登録の内容に足りないところがあります' + NLC +
+        ng.map(function (x) { return '　・' + x; }).join(NLC));
+    }
     return true;
   }
 
@@ -771,11 +892,19 @@ var API = (function () {
       var days = db.readAll('T_USAGE_DAY').filter(function (d) {
         return d.app_id === a.app_id && d.date >= from && d.date <= to;
       });
+      // ★その年度に入る日の分だけを数える。
+      //
+      //   年度をまたぐ申込がある（2025年度の実績で9件）。
+      //   日付で絞らないと、同じ人数が2つの年度の年報に
+      //   まるごと出てしまう。
+      //   例　2025-TNS-0053（2025-07-28 〜 2027-03-31）の73人が、
+      //   　　2025年度にも2026年度にも73人として出ていた。
+      //   （2026-08-21 に判明）
       var heads = db.readAll('T_HEADCOUNT').filter(function (h) {
-        return h.app_id === a.app_id;
+        return h.app_id === a.app_id && h.date >= from && h.date <= to;
       });
       var lodges = db.readAll('T_LODGING').filter(function (l) {
-        return l.app_id === a.app_id;
+        return l.app_id === a.app_id && l.date >= from && l.date <= to;
       });
 
       var g = { '教職員': 0, '学生': 0, '院生': 0, 'その他': 0 };
@@ -875,6 +1004,8 @@ var API = (function () {
     getApplication: getApplication,
     saveApplication: saveApplication,
     updateStatus: updateStatus,
+    markSeen: markSeen,
+    countUnseen: countUnseen,
 
     // 日付と施設
     getCalendar: getCalendar,
