@@ -132,6 +132,21 @@ if (typeof NL === "undefined") var NL = String.fromCharCode(10);
 if (typeof FORMS_SEED !== 'undefined') SEED.M_FORM = FORMS_SEED;
 loadSeed(MemoryAdapter);
 
+// ★ここから先の入力を、ブラウザの中に残す。
+//   サンプルを読んだ後に呼ぶこと。
+//   先に呼ぶと、サンプル自体が「変えた分」として控えられてしまう。
+//
+//   これがないと、職員メモを書いても、未読を切り替えても、
+//   ふせんを貼っても、画面を開き直すと全部消える。
+//   （2026-08-21 ご指摘）
+try {
+  var __restored = MemoryAdapter.enablePersist();
+  if (__restored && __restored.restored) {
+    console.log('前回の入力を ' + __restored.restored + ' 件、戻しました');
+  }
+} catch (e) {}
+
+
 // 招待された方として振る舞う。本来はURLのトークンから特定する
 var UID = (new URLSearchParams(location.search)).get('u') || 'U0002';
 

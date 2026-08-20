@@ -342,7 +342,10 @@ var SCHEMA = {
       //     職員ごとに持つと、列が人数分に増えて扱いにくい。
       { key: 'seen_at',     label: '確認日時',      type: 'datetime',
         note: '職員がはじめて開いた日時。空なら未読' },
-      { key: 'seen_by',     label: '確認者',        type: 'ref', ref: 'M_STAFF' }
+      { key: 'seen_by',     label: '確認者',        type: 'ref', ref: 'M_STAFF' },
+      { key: 'starred',     label: '印',            type: 'bool',
+        note: '★あとで見返したいものに付ける。'
+            + 'ステータスとは別の軸。職員の都合で付ける' }
     ]
   },
 
@@ -473,6 +476,52 @@ var SCHEMA = {
       { key: 'used',    label: '使用日時',   type: 'datetime' },
       { key: 'tries',   label: '試行回数',   type: 'number' },
       { key: 'issued',  label: '発行日時',   type: 'datetime' }
+    ]
+  },
+
+  /**
+   * M7  ふせん（タグ）の定義
+   *
+   * ■ なぜステータスと別に持つか
+   *   ステータス（受付→審査中→許可済）は、手続きがどこまで進んだかを表す。
+   *   ★これは演習林の決まりごとなので、職員が勝手に増やせない。
+   *
+   *   一方で、職員の方が日々必要とするのは
+   *   「返事待ち」「電話した」「宿泊の調整中」といった、
+   *   その場の都合による目印である。
+   *
+   *   これを同じ欄に入れると、どちらかが使えなくなる。
+   *   軸が違うものは、別に持つ。
+   *
+   *   ★名前も色も、職員の方が自由に決められる。
+   */
+  M_TAG: {
+    sheet: 'M7_ふせん',
+    key: 'tag_id',
+    columns: [
+      { key: 'tag_id',    label: 'ふせんID',  type: 'id' },
+      { key: 'forest_id', label: '演習林',    type: 'ref', ref: 'M_FOREST',
+        note: '空なら全演習林で使える' },
+      { key: 'name',      label: '名前',      type: 'text' },
+      { key: 'color',     label: '色',        type: 'text',
+        note: '#RRGGBB の形' },
+      { key: 'seq',       label: '並び',      type: 'number' },
+      { key: 'active',    label: '使用中',    type: 'bool' }
+    ]
+  },
+
+  /**
+   * TD  申込に貼ったふせん
+   * ★1つの申込に、いくつでも貼れる
+   */
+  T_APP_TAG: {
+    sheet: 'TD_ふせんの貼付',
+    key: ['app_id', 'tag_id'],
+    columns: [
+      { key: 'app_id', label: '申込',   type: 'ref', ref: 'T_APPLICATION' },
+      { key: 'tag_id', label: 'ふせん', type: 'ref', ref: 'M_TAG' },
+      { key: 'at',     label: '日時',   type: 'datetime' },
+      { key: 'by',     label: '貼った人', type: 'ref', ref: 'M_STAFF' }
     ]
   },
 
@@ -750,6 +799,57 @@ var MemoryAdapter = (function () {
 
   var db = {};      // { 表名: [行, 行, ...] }
 
+  /* ==================================================================
+     入力した内容を、ブラウザの中に残す
+
+     ★サーバーのない画面（GitHub Pages）でも、
+       開き直したときに続きから見られるようにするためのもの。
+
+       元のサンプルデータごと保存すると、
+       書き込みのたびに1.4MBを書くことになって重い。
+       変えた分だけを控えて、開くときに重ねる。
+
+     ★ここに残るのは、その方のブラウザの中だけ。
+       ほかの方には見えないし、どこにも送られない。
+     ================================================================== */
+
+  var STORE_KEY = 'enshurin_demo_changes';
+  var changes = { insert: [], update: [], remove: [] };
+  var saveTimer = null;
+  var persist = false;      // 残す設定になっているか
+
+  function loadChanges() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) { return null; }
+  }
+
+  function saveChanges() {
+    if (!persist) return;
+    // ★入力のたびに書くと重い。少し待ってからまとめて書く
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      saveTimer = null;
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(changes));
+      } catch (e) {
+        // 容量が足りないときは、諦めて動き続ける。
+        // 保存できないことより、画面が止まることのほうが困る。
+      }
+    }, 400);
+  }
+
+  function note(kind, table, a, b) {
+    if (!persist) return;
+    changes[kind].push(
+      kind === 'update' ? { t: table, k: a, p: b } :
+      kind === 'remove' ? { t: table, k: a } :
+                          { t: table, r: a });
+    saveChanges();
+  }
+
   function ensure(table) {
     if (!db[table]) db[table] = [];
     return db[table];
@@ -886,6 +986,7 @@ var MemoryAdapter = (function () {
         return row;                       // すでにあるので、入れない
       }
       t.push(row);
+      note('insert', table, row);
       return row;
     },
 
@@ -907,6 +1008,7 @@ var MemoryAdapter = (function () {
       for (var i = 0; i < rows.length; i++) {
         if (keyOf(table, rows[i]) === want) {
           for (var k in patch) rows[i][k] = patch[k];
+          note('update', table, key, patch);
           return rows[i];
         }
       }
@@ -919,6 +1021,7 @@ var MemoryAdapter = (function () {
       for (var i = 0; i < rows.length; i++) {
         if (keyOf(table, rows[i]) === want) {
           rows.splice(i, 1);
+          note('remove', table, key);
           return true;
         }
       }
@@ -949,6 +1052,58 @@ var MemoryAdapter = (function () {
     },
 
     /** 開発用。中身を空にする */
+    /**
+     * 入力した内容を、ブラウザの中に残す設定にする
+     * ★サンプルデータを読み込んだ後に呼ぶ。
+     *   先に呼ぶと、サンプルデータ自体が「変えた分」として控えられてしまう。
+     */
+    enablePersist: function () {
+      persist = true;
+
+      // 前に開いたときの変更を、順に重ねる
+      var c = loadChanges();
+      if (!c) return { restored: 0 };
+
+      var n = 0;
+      persist = false;                    // 重ねる間は控えない
+      try {
+        (c.insert || []).forEach(function (x) {
+          try {
+            // ★すでにサンプルに入っている行は、もう一度足さない。
+            //   足すと同じ申込が2件になり、
+            //   片方だけに変更が当たって数が合わなくなる。
+            //   （2026-08-21　未読の数が合わない不具合の原因）
+            var t = ensure(x.t);
+            if (dropDuplicates(x.t, [x.r], t).length === 0) return;
+            t.push(x.r);
+            n++;
+          } catch (e) {}
+        });
+        (c.update || []).forEach(function (x) {
+          try { MemoryAdapter.update(x.t, x.k, x.p); n++; } catch (e) {}
+        });
+        (c.remove || []).forEach(function (x) {
+          try { MemoryAdapter.remove(x.t, x.k); n++; } catch (e) {}
+        });
+      } finally {
+        persist = true;
+        changes = c;                      // 続きから控える
+      }
+      return { restored: n };
+    },
+
+    /** 残してある内容を消して、はじめの状態に戻す */
+    clearPersist: function () {
+      try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+      changes = { insert: [], update: [], remove: [] };
+      return true;
+    },
+
+    /** いくつ変更が残っているか */
+    persistCount: function () {
+      return changes.insert.length + changes.update.length + changes.remove.length;
+    },
+
     withLock: withLock,
     reset: function () { db = {}; },
 
@@ -1299,6 +1454,173 @@ var API = (function () {
       if (forestId && a.forest_id !== forestId) return false;
       return !a.seen_at;
     }).length;
+  }
+
+  /**
+   * 未読に戻す
+   * ★あとで見返したいときに使う。メールソフトと同じ。
+   */
+  function markUnseen(appId) {
+    var a = db.findByKey('T_APPLICATION', appId);
+    if (!a) return { ok: false, error: '申込が見つかりません' };
+    db.update('T_APPLICATION', appId, { seen_at: '', seen_by: '' });
+    return { ok: true };
+  }
+
+  /**
+   * 印（スター）を付ける・外す
+   * @param {boolean} on  省略すると、いまと反対にする
+   */
+  function setStar(appId, on) {
+    var a = db.findByKey('T_APPLICATION', appId);
+    if (!a) return { ok: false, error: '申込が見つかりません' };
+    var next = (on === undefined) ? !truthy(a.starred) : !!on;
+    db.update('T_APPLICATION', appId, { starred: next });
+    return { ok: true, starred: next };
+  }
+
+  function truthy(v) {
+    return v === true || v === 'TRUE' || v === 'true' || v === 1 || v === '1';
+  }
+
+  // ------------------------------------------------ ふせん（タグ）
+
+  /**
+   * その演習林で使えるふせんの一覧
+   * ★演習林を指定しないものは、どこでも使える
+   */
+  function getTags(forestId) {
+    return db.readAll('M_TAG')
+      .filter(function (t) {
+        if (t.active === false) return false;
+        return !t.forest_id || !forestId || t.forest_id === forestId;
+      })
+      .sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); });
+  }
+
+  /**
+   * ふせんを作る
+   * ★名前も色も、職員の方が自由に決められる。
+   *   決まりごと（ステータス）と違い、ここは現場の都合で増やしてよい。
+   */
+  function createTag(forestId, name, color, staffId) {
+    name = String(name || '').trim();
+    if (!name) return { ok: false, error: 'ふせんの名前を入れてください' };
+
+    var same = getTags(forestId).filter(function (t) { return t.name === name; });
+    if (same.length) return { ok: false, error: '同じ名前のふせんがあります' };
+
+    var id = db.nextId('M_TAG', 'G');
+    var seq = db.readAll('M_TAG').length + 1;
+    db.insert('M_TAG', {
+      tag_id: id, forest_id: forestId || '', name: name,
+      color: color || '#4A7A4A', seq: seq, active: true
+    });
+    writeAudit(staffId, 'ふせんを作った', id, name);
+    return { ok: true, tag_id: id };
+  }
+
+  /** ふせんの名前や色を変える */
+  function updateTag(tagId, patch, staffId) {
+    var t = db.findByKey('M_TAG', tagId);
+    if (!t) return { ok: false, error: 'ふせんが見つかりません' };
+    var allow = {};
+    ['name', 'color', 'seq', 'active'].forEach(function (k) {
+      if (patch[k] !== undefined) allow[k] = patch[k];
+    });
+    db.update('M_TAG', tagId, allow);
+    writeAudit(staffId, 'ふせんを変えた', tagId, JSON.stringify(allow));
+    return { ok: true };
+  }
+
+  /** 申込にふせんを貼る・はがす */
+  function toggleTag(appId, tagId, staffId) {
+    var has = db.findByKey('T_APP_TAG', [appId, tagId]);
+    if (has) {
+      db.remove('T_APP_TAG', [appId, tagId]);
+      return { ok: true, on: false };
+    }
+    db.insert('T_APP_TAG', {
+      app_id: appId, tag_id: tagId, at: now(), by: staffId || ''
+    });
+    return { ok: true, on: true };
+  }
+
+  /** 申込に貼られているふせん */
+  function getAppTags(appId) {
+    var tags = byId(db.readAll('M_TAG'), 'tag_id');
+    return db.readAll('T_APP_TAG')
+      .filter(function (r) { return r.app_id === appId; })
+      .map(function (r) { return tags[r.tag_id]; })
+      .filter(function (t) { return !!t; });
+  }
+
+  /**
+   * 申込ごとのふせんを、まとめて引く
+   * ★一覧で1件ずつ引くと、件数の分だけ読み込みが起きる
+   */
+  function getTagsByApp(appIds) {
+    var want = {};
+    (appIds || []).forEach(function (x) { want[x] = true; });
+    var tags = byId(db.readAll('M_TAG'), 'tag_id');
+    var out = {};
+    db.readAll('T_APP_TAG').forEach(function (r) {
+      if (appIds && !want[r.app_id]) return;
+      if (!out[r.app_id]) out[r.app_id] = [];
+      var t = tags[r.tag_id];
+      if (t) out[r.app_id].push(t);
+    });
+    return out;
+  }
+
+  // ------------------------------------------------ まとめて行う
+
+  /**
+   * 選んだ申込に、同じことをまとめて行う
+   *
+   * ★1件ずつ開いて操作するのは、件数が増えると現実的でない。
+   *
+   * @param {Array}  appIds  申込ID
+   * @param {string} what    'seen' / 'unseen' / 'star' / 'unstar' /
+   *                         'tag' / 'untag'
+   * @param {Object} opt     { tag_id, staff_id }
+   */
+  function bulk(appIds, what, opt) {
+    opt = opt || {};
+    var n = 0;
+    var errs = [];
+
+    (appIds || []).forEach(function (id) {
+      try {
+        if (what === 'seen')        { markSeen(id, opt.staff_id); n++; }
+        else if (what === 'unseen') { markUnseen(id); n++; }
+        else if (what === 'star')   { setStar(id, true); n++; }
+        else if (what === 'unstar') { setStar(id, false); n++; }
+        else if (what === 'tag') {
+          if (!db.findByKey('T_APP_TAG', [id, opt.tag_id])) {
+            db.insert('T_APP_TAG', {
+              app_id: id, tag_id: opt.tag_id, at: now(), by: opt.staff_id || ''
+            });
+          }
+          n++;
+        }
+        else if (what === 'untag') {
+          if (db.findByKey('T_APP_TAG', [id, opt.tag_id])) {
+            db.remove('T_APP_TAG', [id, opt.tag_id]);
+          }
+          n++;
+        }
+        else { errs.push('知らない操作　' + what); }
+      } catch (e) {
+        errs.push(id + '　' + e.message);
+      }
+    });
+
+    if (opt.staff_id && n) {
+      writeAudit(opt.staff_id, 'まとめて操作', what,
+                 n + '件' + (opt.tag_id ? '　' + opt.tag_id : ''));
+    }
+    return { ok: errs.length === 0, done: n, errors: errs };
   }
 
   function firstStatusOf(forestId) {
@@ -1967,7 +2289,16 @@ var API = (function () {
     saveApplication: saveApplication,
     updateStatus: updateStatus,
     markSeen: markSeen,
+    markUnseen: markUnseen,
     countUnseen: countUnseen,
+    setStar: setStar,
+    getTags: getTags,
+    createTag: createTag,
+    updateTag: updateTag,
+    toggleTag: toggleTag,
+    getAppTags: getAppTags,
+    getTagsByApp: getTagsByApp,
+    bulk: bulk,
 
     // 日付と施設
     getCalendar: getCalendar,
@@ -3022,6 +3353,21 @@ var Draft = (function () {
 
 if (typeof FORMS_SEED !== 'undefined') SEED.M_FORM = FORMS_SEED;
 loadSeed(MemoryAdapter);
+
+// ★ここから先の入力を、ブラウザの中に残す。
+//   サンプルを読んだ後に呼ぶこと。
+//   先に呼ぶと、サンプル自体が「変えた分」として控えられてしまう。
+//
+//   これがないと、職員メモを書いても、未読を切り替えても、
+//   ふせんを貼っても、画面を開き直すと全部消える。
+//   （2026-08-21 ご指摘）
+try {
+  var __restored = MemoryAdapter.enablePersist();
+  if (__restored && __restored.restored) {
+    console.log('前回の入力を ' + __restored.restored + ' 件、戻しました');
+  }
+} catch (e) {}
+
 
 // 招待された方として振る舞う。本来はURLのトークンから特定する
 var UID = (new URLSearchParams(location.search)).get('u') || 'U0002';

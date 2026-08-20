@@ -339,6 +339,173 @@ var API = (function () {
     }).length;
   }
 
+  /**
+   * 未読に戻す
+   * ★あとで見返したいときに使う。メールソフトと同じ。
+   */
+  function markUnseen(appId) {
+    var a = db.findByKey('T_APPLICATION', appId);
+    if (!a) return { ok: false, error: '申込が見つかりません' };
+    db.update('T_APPLICATION', appId, { seen_at: '', seen_by: '' });
+    return { ok: true };
+  }
+
+  /**
+   * 印（スター）を付ける・外す
+   * @param {boolean} on  省略すると、いまと反対にする
+   */
+  function setStar(appId, on) {
+    var a = db.findByKey('T_APPLICATION', appId);
+    if (!a) return { ok: false, error: '申込が見つかりません' };
+    var next = (on === undefined) ? !truthy(a.starred) : !!on;
+    db.update('T_APPLICATION', appId, { starred: next });
+    return { ok: true, starred: next };
+  }
+
+  function truthy(v) {
+    return v === true || v === 'TRUE' || v === 'true' || v === 1 || v === '1';
+  }
+
+  // ------------------------------------------------ ふせん（タグ）
+
+  /**
+   * その演習林で使えるふせんの一覧
+   * ★演習林を指定しないものは、どこでも使える
+   */
+  function getTags(forestId) {
+    return db.readAll('M_TAG')
+      .filter(function (t) {
+        if (t.active === false) return false;
+        return !t.forest_id || !forestId || t.forest_id === forestId;
+      })
+      .sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); });
+  }
+
+  /**
+   * ふせんを作る
+   * ★名前も色も、職員の方が自由に決められる。
+   *   決まりごと（ステータス）と違い、ここは現場の都合で増やしてよい。
+   */
+  function createTag(forestId, name, color, staffId) {
+    name = String(name || '').trim();
+    if (!name) return { ok: false, error: 'ふせんの名前を入れてください' };
+
+    var same = getTags(forestId).filter(function (t) { return t.name === name; });
+    if (same.length) return { ok: false, error: '同じ名前のふせんがあります' };
+
+    var id = db.nextId('M_TAG', 'G');
+    var seq = db.readAll('M_TAG').length + 1;
+    db.insert('M_TAG', {
+      tag_id: id, forest_id: forestId || '', name: name,
+      color: color || '#4A7A4A', seq: seq, active: true
+    });
+    writeAudit(staffId, 'ふせんを作った', id, name);
+    return { ok: true, tag_id: id };
+  }
+
+  /** ふせんの名前や色を変える */
+  function updateTag(tagId, patch, staffId) {
+    var t = db.findByKey('M_TAG', tagId);
+    if (!t) return { ok: false, error: 'ふせんが見つかりません' };
+    var allow = {};
+    ['name', 'color', 'seq', 'active'].forEach(function (k) {
+      if (patch[k] !== undefined) allow[k] = patch[k];
+    });
+    db.update('M_TAG', tagId, allow);
+    writeAudit(staffId, 'ふせんを変えた', tagId, JSON.stringify(allow));
+    return { ok: true };
+  }
+
+  /** 申込にふせんを貼る・はがす */
+  function toggleTag(appId, tagId, staffId) {
+    var has = db.findByKey('T_APP_TAG', [appId, tagId]);
+    if (has) {
+      db.remove('T_APP_TAG', [appId, tagId]);
+      return { ok: true, on: false };
+    }
+    db.insert('T_APP_TAG', {
+      app_id: appId, tag_id: tagId, at: now(), by: staffId || ''
+    });
+    return { ok: true, on: true };
+  }
+
+  /** 申込に貼られているふせん */
+  function getAppTags(appId) {
+    var tags = byId(db.readAll('M_TAG'), 'tag_id');
+    return db.readAll('T_APP_TAG')
+      .filter(function (r) { return r.app_id === appId; })
+      .map(function (r) { return tags[r.tag_id]; })
+      .filter(function (t) { return !!t; });
+  }
+
+  /**
+   * 申込ごとのふせんを、まとめて引く
+   * ★一覧で1件ずつ引くと、件数の分だけ読み込みが起きる
+   */
+  function getTagsByApp(appIds) {
+    var want = {};
+    (appIds || []).forEach(function (x) { want[x] = true; });
+    var tags = byId(db.readAll('M_TAG'), 'tag_id');
+    var out = {};
+    db.readAll('T_APP_TAG').forEach(function (r) {
+      if (appIds && !want[r.app_id]) return;
+      if (!out[r.app_id]) out[r.app_id] = [];
+      var t = tags[r.tag_id];
+      if (t) out[r.app_id].push(t);
+    });
+    return out;
+  }
+
+  // ------------------------------------------------ まとめて行う
+
+  /**
+   * 選んだ申込に、同じことをまとめて行う
+   *
+   * ★1件ずつ開いて操作するのは、件数が増えると現実的でない。
+   *
+   * @param {Array}  appIds  申込ID
+   * @param {string} what    'seen' / 'unseen' / 'star' / 'unstar' /
+   *                         'tag' / 'untag'
+   * @param {Object} opt     { tag_id, staff_id }
+   */
+  function bulk(appIds, what, opt) {
+    opt = opt || {};
+    var n = 0;
+    var errs = [];
+
+    (appIds || []).forEach(function (id) {
+      try {
+        if (what === 'seen')        { markSeen(id, opt.staff_id); n++; }
+        else if (what === 'unseen') { markUnseen(id); n++; }
+        else if (what === 'star')   { setStar(id, true); n++; }
+        else if (what === 'unstar') { setStar(id, false); n++; }
+        else if (what === 'tag') {
+          if (!db.findByKey('T_APP_TAG', [id, opt.tag_id])) {
+            db.insert('T_APP_TAG', {
+              app_id: id, tag_id: opt.tag_id, at: now(), by: opt.staff_id || ''
+            });
+          }
+          n++;
+        }
+        else if (what === 'untag') {
+          if (db.findByKey('T_APP_TAG', [id, opt.tag_id])) {
+            db.remove('T_APP_TAG', [id, opt.tag_id]);
+          }
+          n++;
+        }
+        else { errs.push('知らない操作　' + what); }
+      } catch (e) {
+        errs.push(id + '　' + e.message);
+      }
+    });
+
+    if (opt.staff_id && n) {
+      writeAudit(opt.staff_id, 'まとめて操作', what,
+                 n + '件' + (opt.tag_id ? '　' + opt.tag_id : ''));
+    }
+    return { ok: errs.length === 0, done: n, errors: errs };
+  }
+
   function firstStatusOf(forestId) {
     var list = db.readAll('M_STATUS')
       .filter(function (s) { return s.forest_id === forestId; })
@@ -1005,7 +1172,16 @@ var API = (function () {
     saveApplication: saveApplication,
     updateStatus: updateStatus,
     markSeen: markSeen,
+    markUnseen: markUnseen,
     countUnseen: countUnseen,
+    setStar: setStar,
+    getTags: getTags,
+    createTag: createTag,
+    updateTag: updateTag,
+    toggleTag: toggleTag,
+    getAppTags: getAppTags,
+    getTagsByApp: getTagsByApp,
+    bulk: bulk,
 
     // 日付と施設
     getCalendar: getCalendar,

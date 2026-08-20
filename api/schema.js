@@ -216,7 +216,10 @@ var SCHEMA = {
       //     職員ごとに持つと、列が人数分に増えて扱いにくい。
       { key: 'seen_at',     label: '確認日時',      type: 'datetime',
         note: '職員がはじめて開いた日時。空なら未読' },
-      { key: 'seen_by',     label: '確認者',        type: 'ref', ref: 'M_STAFF' }
+      { key: 'seen_by',     label: '確認者',        type: 'ref', ref: 'M_STAFF' },
+      { key: 'starred',     label: '印',            type: 'bool',
+        note: '★あとで見返したいものに付ける。'
+            + 'ステータスとは別の軸。職員の都合で付ける' }
     ]
   },
 
@@ -347,6 +350,52 @@ var SCHEMA = {
       { key: 'used',    label: '使用日時',   type: 'datetime' },
       { key: 'tries',   label: '試行回数',   type: 'number' },
       { key: 'issued',  label: '発行日時',   type: 'datetime' }
+    ]
+  },
+
+  /**
+   * M7  ふせん（タグ）の定義
+   *
+   * ■ なぜステータスと別に持つか
+   *   ステータス（受付→審査中→許可済）は、手続きがどこまで進んだかを表す。
+   *   ★これは演習林の決まりごとなので、職員が勝手に増やせない。
+   *
+   *   一方で、職員の方が日々必要とするのは
+   *   「返事待ち」「電話した」「宿泊の調整中」といった、
+   *   その場の都合による目印である。
+   *
+   *   これを同じ欄に入れると、どちらかが使えなくなる。
+   *   軸が違うものは、別に持つ。
+   *
+   *   ★名前も色も、職員の方が自由に決められる。
+   */
+  M_TAG: {
+    sheet: 'M7_ふせん',
+    key: 'tag_id',
+    columns: [
+      { key: 'tag_id',    label: 'ふせんID',  type: 'id' },
+      { key: 'forest_id', label: '演習林',    type: 'ref', ref: 'M_FOREST',
+        note: '空なら全演習林で使える' },
+      { key: 'name',      label: '名前',      type: 'text' },
+      { key: 'color',     label: '色',        type: 'text',
+        note: '#RRGGBB の形' },
+      { key: 'seq',       label: '並び',      type: 'number' },
+      { key: 'active',    label: '使用中',    type: 'bool' }
+    ]
+  },
+
+  /**
+   * TD  申込に貼ったふせん
+   * ★1つの申込に、いくつでも貼れる
+   */
+  T_APP_TAG: {
+    sheet: 'TD_ふせんの貼付',
+    key: ['app_id', 'tag_id'],
+    columns: [
+      { key: 'app_id', label: '申込',   type: 'ref', ref: 'T_APPLICATION' },
+      { key: 'tag_id', label: 'ふせん', type: 'ref', ref: 'M_TAG' },
+      { key: 'at',     label: '日時',   type: 'datetime' },
+      { key: 'by',     label: '貼った人', type: 'ref', ref: 'M_STAFF' }
     ]
   },
 

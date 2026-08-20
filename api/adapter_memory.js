@@ -20,6 +20,57 @@ var MemoryAdapter = (function () {
 
   var db = {};      // { 表名: [行, 行, ...] }
 
+  /* ==================================================================
+     入力した内容を、ブラウザの中に残す
+
+     ★サーバーのない画面（GitHub Pages）でも、
+       開き直したときに続きから見られるようにするためのもの。
+
+       元のサンプルデータごと保存すると、
+       書き込みのたびに1.4MBを書くことになって重い。
+       変えた分だけを控えて、開くときに重ねる。
+
+     ★ここに残るのは、その方のブラウザの中だけ。
+       ほかの方には見えないし、どこにも送られない。
+     ================================================================== */
+
+  var STORE_KEY = 'enshurin_demo_changes';
+  var changes = { insert: [], update: [], remove: [] };
+  var saveTimer = null;
+  var persist = false;      // 残す設定になっているか
+
+  function loadChanges() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) { return null; }
+  }
+
+  function saveChanges() {
+    if (!persist) return;
+    // ★入力のたびに書くと重い。少し待ってからまとめて書く
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      saveTimer = null;
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(changes));
+      } catch (e) {
+        // 容量が足りないときは、諦めて動き続ける。
+        // 保存できないことより、画面が止まることのほうが困る。
+      }
+    }, 400);
+  }
+
+  function note(kind, table, a, b) {
+    if (!persist) return;
+    changes[kind].push(
+      kind === 'update' ? { t: table, k: a, p: b } :
+      kind === 'remove' ? { t: table, k: a } :
+                          { t: table, r: a });
+    saveChanges();
+  }
+
   function ensure(table) {
     if (!db[table]) db[table] = [];
     return db[table];
@@ -156,6 +207,7 @@ var MemoryAdapter = (function () {
         return row;                       // すでにあるので、入れない
       }
       t.push(row);
+      note('insert', table, row);
       return row;
     },
 
@@ -177,6 +229,7 @@ var MemoryAdapter = (function () {
       for (var i = 0; i < rows.length; i++) {
         if (keyOf(table, rows[i]) === want) {
           for (var k in patch) rows[i][k] = patch[k];
+          note('update', table, key, patch);
           return rows[i];
         }
       }
@@ -189,6 +242,7 @@ var MemoryAdapter = (function () {
       for (var i = 0; i < rows.length; i++) {
         if (keyOf(table, rows[i]) === want) {
           rows.splice(i, 1);
+          note('remove', table, key);
           return true;
         }
       }
@@ -219,6 +273,58 @@ var MemoryAdapter = (function () {
     },
 
     /** 開発用。中身を空にする */
+    /**
+     * 入力した内容を、ブラウザの中に残す設定にする
+     * ★サンプルデータを読み込んだ後に呼ぶ。
+     *   先に呼ぶと、サンプルデータ自体が「変えた分」として控えられてしまう。
+     */
+    enablePersist: function () {
+      persist = true;
+
+      // 前に開いたときの変更を、順に重ねる
+      var c = loadChanges();
+      if (!c) return { restored: 0 };
+
+      var n = 0;
+      persist = false;                    // 重ねる間は控えない
+      try {
+        (c.insert || []).forEach(function (x) {
+          try {
+            // ★すでにサンプルに入っている行は、もう一度足さない。
+            //   足すと同じ申込が2件になり、
+            //   片方だけに変更が当たって数が合わなくなる。
+            //   （2026-08-21　未読の数が合わない不具合の原因）
+            var t = ensure(x.t);
+            if (dropDuplicates(x.t, [x.r], t).length === 0) return;
+            t.push(x.r);
+            n++;
+          } catch (e) {}
+        });
+        (c.update || []).forEach(function (x) {
+          try { MemoryAdapter.update(x.t, x.k, x.p); n++; } catch (e) {}
+        });
+        (c.remove || []).forEach(function (x) {
+          try { MemoryAdapter.remove(x.t, x.k); n++; } catch (e) {}
+        });
+      } finally {
+        persist = true;
+        changes = c;                      // 続きから控える
+      }
+      return { restored: n };
+    },
+
+    /** 残してある内容を消して、はじめの状態に戻す */
+    clearPersist: function () {
+      try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+      changes = { insert: [], update: [], remove: [] };
+      return true;
+    },
+
+    /** いくつ変更が残っているか */
+    persistCount: function () {
+      return changes.insert.length + changes.update.length + changes.remove.length;
+    },
+
     withLock: withLock,
     reset: function () { db = {}; },
 

@@ -114,12 +114,66 @@
   }
   .card .body{padding:10px 12px}
 
-  /* まだ誰も開いていない申込。メールソフトと同じ見え方にする */
-  tr.unseen td{font-weight:600; background:#FBFCF9}
+  /* まだ誰も開いていない申込
+   *
+   * ★メールソフトは「未読を目立たせる」のではなく
+   *   「既読を沈める」形をとっている。
+   *   一覧の大半は既読になるので、そちらを静かにするほうが差が出る。
+   *   （2026-08-21　差が分かりにくいというご指摘を受けて直した）
+   */
+  tbody tr{background:#EEF1F5}            /* 既読　沈める */
+  tbody tr td{color:#5F6368}
+  tbody tr.unseen{background:#fff}        /* 未読　白く浮かせる */
+  tbody tr.unseen td{
+    font-weight:700; color:#202124;
+    border-bottom:1px solid var(--line);
+  }
+  tbody tr.unseen td:first-child{box-shadow:inset 3px 0 0 var(--green)}
+  tbody tr:hover{background:#F7F9FB}
+  tbody tr.unseen:hover{background:#FAFCFF}
   .newdot{
     display:inline-block; width:7px; height:7px; border-radius:50%;
     background:var(--green); margin-right:6px; vertical-align:middle;
   }
+  /* 選ぶ四角と、印（星） */
+  td.pick, th.pick{width:52px; white-space:nowrap; padding-left:8px}
+  td.pick input{width:auto; margin:0 4px 0 0; cursor:pointer; vertical-align:middle}
+  .star{
+    cursor:pointer; color:#C8CBD0; font-size:15px;
+    vertical-align:middle; user-select:none;
+  }
+  .star.on{color:#E8B33A}
+  .star:hover{color:#E8B33A}
+  tbody tr.picked{background:#FFF8E1 !important}
+
+  /* ふせん */
+  .tagchip{
+    display:inline-block; color:#fff; font-size:11px; font-weight:600;
+    border-radius:3px; padding:1px 7px; margin-left:6px;
+    vertical-align:middle; line-height:1.7;
+  }
+
+  /* まとめて操作する帯 */
+  .bulkbar{
+    background:#EDF3ED; border:1px solid #C8D8C8; border-radius:5px;
+    padding:8px 11px; margin-bottom:9px;
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  }
+  .bulkn{font-size:12.5px; font-weight:600; color:var(--green); margin-right:5px}
+  .bulksep{font-size:12px; color:var(--gray); margin:0 3px 0 8px}
+  .tagbtn{
+    background:#fff; border:1.5px solid; border-radius:3px;
+    padding:3px 10px; font-size:12px; font-weight:600;
+    cursor:pointer; font-family:inherit;
+  }
+  .tagbtn:hover{filter:brightness(0.94)}
+
+  /* 入力が残っていることの表示 */
+  .savednote{
+    background:#FFF8E6; border-bottom:1px solid #E4D5A8;
+    padding:6px 20px; font-size:12.5px; color:#6B5A22;
+  }
+
   .unseen-count{
     display:inline-block; background:var(--green); color:#fff;
     border-radius:9px; padding:1px 8px; font-size:11.5px;
@@ -187,6 +241,7 @@
   <button data-tab="audit">操作の記録</button>
 </nav>
 
+<div id="savednote" class="savednote" style="display:none"></div>
 <main>
   <div class="panel on" id="p-cal"></div>
   <div class="panel" id="p-list"></div>
@@ -239,6 +294,21 @@ function fmtDate(s){
 // 様式定義は、7施設の公開ページを調べた結果に差し替える（2026-08-19）
 if (typeof FORMS_SEED !== 'undefined') SEED.M_FORM = FORMS_SEED;
 loadSeed(MemoryAdapter);
+
+// ★ここから先の入力を、ブラウザの中に残す。
+//   サンプルを読んだ後に呼ぶこと。
+//   先に呼ぶと、サンプル自体が「変えた分」として控えられてしまう。
+//
+//   これがないと、職員メモを書いても、未読を切り替えても、
+//   ふせんを貼っても、画面を開き直すと全部消える。
+//   （2026-08-21 ご指摘）
+try {
+  var __restored = MemoryAdapter.enablePersist();
+  if (__restored && __restored.restored) {
+    console.log('前回の入力を ' + __restored.restored + ' 件、戻しました');
+  }
+} catch (e) {}
+
 
 function boot(){
   var me = Auth.current();
@@ -320,6 +390,34 @@ boot();
  * ★数字が出ていれば、職員の方は一覧を開く理由が分かる。
  *   出ていなければ、開く必要がない。
  */
+/**
+ * 入力した内容が残っていることを、画面に出す
+ *
+ * ★「保存されているのか」が分からないと、
+ *   利用される方は同じことを何度も確かめることになる。
+ */
+function renderSavedNote(){
+  var el = $('savednote');
+  if(!el) return;
+  var n = 0;
+  try{ n = MemoryAdapter.persistCount ? MemoryAdapter.persistCount() : 0; }catch(e){}
+  if(n > 0){
+    el.innerHTML = '入力した内容 ' + n + ' 件が、このブラウザに残っています' +
+      '<button class="btn sub" style="margin-left:8px" ' +
+      'onclick="resetDemo()">はじめの状態に戻す</button>';
+    el.style.display = '';
+  }else{
+    el.style.display = 'none';
+  }
+}
+
+function resetDemo(){
+  if(!confirm('入力した内容をすべて消して、はじめの状態に戻します。' + NL + NL +
+              'よろしいですか。')) return;
+  try{ MemoryAdapter.clearPersist(); }catch(e){}
+  location.reload();
+}
+
 function renderUnseenBadge(){
   var el = $('tab-unseen');
   if(!el) return;
@@ -335,6 +433,7 @@ function renderUnseenBadge(){
 
 function render(){
   renderUnseenBadge();
+  renderSavedNote();
   document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('on'); });
   var id = 'p-' + state.tab;
   $(id).classList.add('on');
