@@ -167,6 +167,15 @@
     cursor:pointer; font-family:inherit;
   }
   .tagbtn:hover{filter:brightness(0.94)}
+  .tagwrap{display:inline-flex; align-items:center}
+  .tagwrap .tagbtn{border-top-right-radius:0; border-bottom-right-radius:0}
+  .tagx{
+    border:1.5px solid var(--line); border-left:none;
+    border-top-right-radius:3px; border-bottom-right-radius:3px;
+    background:#fff; color:#B8BCC2; cursor:pointer;
+    font-size:12px; padding:3px 6px; line-height:1.35; font-family:inherit;
+  }
+  .tagx:hover{color:#B02418; background:#FFF3F2}
 
   /* 職員メモ（申し送り） */
   .memo-list{margin-bottom:10px; max-height:260px; overflow-y:auto}
@@ -201,7 +210,10 @@
   /* 入力が残っていることの表示 */
   .savednote{
     background:#FFF8E6; border-bottom:1px solid #E4D5A8;
-    padding:6px 20px; font-size:12.5px; color:#6B5A22;
+    padding:6px 20px; font-size:12.5px; color:#6B5A22; line-height:1.9;
+  }
+  .savednote.shared{
+    background:#EDF3ED; border-bottom-color:#C8D8C8; color:#2C5530;
   }
 
   .unseen-count{
@@ -429,16 +441,35 @@ boot();
 function renderSavedNote(){
   var el = $('savednote');
   if(!el) return;
+
+  // ★サーバーにつながっているかどうかで、話がまるで変わる。
+  //   つながっていれば、書いたものは全員に見える。
+  //   つながっていなければ、自分のブラウザの中だけ。
+  //   ここを取り違えると「なぜ相手に見えないのか」で悩むことになる。
+  var onServer = (typeof RemoteAdapter !== 'undefined' &&
+                  typeof google !== 'undefined' &&
+                  google.script && google.script.run);
+
+  if(onServer){
+    el.innerHTML =
+      '<b>本番と同じつなぎ方です。</b>　書き込んだ内容は保存され、' +
+      '職員の方全員に見えます。';
+    el.className = 'savednote shared';
+    el.style.display = '';
+    return;
+  }
+
   var n = 0;
   try{ n = MemoryAdapter.persistCount ? MemoryAdapter.persistCount() : 0; }catch(e){}
-  if(n > 0){
-    el.innerHTML = '入力した内容 ' + n + ' 件が、このブラウザに残っています' +
-      '<button class="btn sub" style="margin-left:8px" ' +
-      'onclick="resetDemo()">はじめの状態に戻す</button>';
-    el.style.display = '';
-  }else{
-    el.style.display = 'none';
-  }
+  el.className = 'savednote';
+  el.innerHTML =
+    '<b>この画面は、動きを確かめるためのものです。</b>　' +
+    '入力した内容は<u>このブラウザの中だけ</u>に残ります。' +
+    'ほかの方には見えません。' +
+    (n ? '（いま ' + n + ' 件）' +
+         '<button class="btn sub" style="margin-left:8px" ' +
+         'onclick="resetDemo()">はじめの状態に戻す</button>' : '');
+  el.style.display = '';
 }
 
 function resetDemo(){
@@ -720,6 +751,11 @@ function openDetail(appId){
 
 function renderDetail(){
   var a = API.getApplication(state.appId);
+
+  // ★開いた時点の「最終更新」を覚えておく。
+  //   書き込むときにこれと比べて、
+  //   ほかの方が先に変えていないかを確かめる。
+  if(a) state.seenAt = a.updated_at;
   if(!a){ $('p-detail').innerHTML = '<div class="empty">見つかりません</div>'; return; }
 
   var m = API.getMasters(state.forest);
@@ -875,8 +911,26 @@ function backToList(){
 }
 
 function changeStatus(appId, to){
-  var r = API.updateStatus(appId, to, state.staff, '');
-  if(r.ok) renderDetail();
+  var me = Auth.current();
+  var r = API.updateStatus(appId, to, me ? me.id : state.staff, '', state.seenAt);
+
+  if(r && r.conflict){
+    // ★黙って上書きしない。知らせて、選んでいただく
+    if(confirm(r.error + NL + NL +
+               'それでもこのまま変えますか。' + NL +
+               '（ほかの方の変更が上書きされます）')){
+      var r2 = API.updateStatus(appId, to, me ? me.id : state.staff,
+                                '［上書き］先の変更を承知のうえで変更', null);
+      if(!r2.ok){ alert(r2.error); return; }
+    }else{
+      renderDetail();     // 開き直して、最新を見せる
+      return;
+    }
+  }else if(r && !r.ok){
+    alert(r.error);
+    return;
+  }
+  renderDetail();
 }
 
 /**
@@ -891,7 +945,16 @@ function forceStatus(appId){
     alert('順路の外へ動かすときは、理由をご入力ください。');
     return;
   }
-  var r = API.updateStatus(appId, to, state.staff, '［順路外］'+why);
+  var me = Auth.current();
+  var r = API.updateStatus(appId, to, me ? me.id : state.staff,
+                           '［順路外］'+why, state.seenAt);
+  if(r && r.conflict){
+    if(!confirm(r.error + NL + NL + 'それでもこのまま変えますか。')) {
+      renderDetail(); return;
+    }
+    r = API.updateStatus(appId, to, me ? me.id : state.staff,
+                         '［順路外・上書き］'+why, null);
+  }
   if(r && r.ok){ renderDetail(); }
   else { alert('変えられませんでした' + NL + NL + ((r&&r.error)||'')); }
 }

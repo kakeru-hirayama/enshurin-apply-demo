@@ -439,6 +439,79 @@ function checkSchema() {
 }
 
 
+/**
+ * シートを守る
+ *
+ * ■ なぜ守るか
+ *   生のデータを人が手で直せると、
+ *   システムが書いた内容と食い違い、どちらが正しいか分からなくなる。
+ *   ★数式を1つ入れただけで、列がずれることもある。
+ *
+ *   見たい方には閲覧の権限をお渡しし、
+ *   加工が必要ならコピーを取っていただく。
+ *
+ * ■ 誰が書けるか
+ *   このスクリプトを動かしているアカウントだけ。
+ *   ほかの方は、閲覧はできても書き換えられない。
+ */
+function protectSheets(main, pers) {
+  var done = [];
+  [main, pers].forEach(function (book) {
+    book.getSheets().forEach(function (sh) {
+      try {
+        // すでに守られていれば、そのまま
+        var olds = sh.getProtections(SpreadsheetApp.ProtectionType.SHEET);
+        if (olds.length) {
+          done.push(sh.getName());
+          return;
+        }
+        var p = sh.protect();
+        p.setDescription(
+          'システムが書き込みます。手で変えないでください。' +
+          '加工が必要なときは、ファイルのコピーをお取りください。');
+
+        // 自分以外の編集者を外す
+        var me = Session.getEffectiveUser();
+        p.addEditor(me);
+        p.removeEditors(p.getEditors().filter(function (u) {
+          return u.getEmail() !== me.getEmail();
+        }));
+        if (p.canDomainEdit()) p.setDomainEdit(false);
+
+        done.push(sh.getName());
+      } catch (e) {
+        // 守れなくても、セットアップ自体は続ける
+        Logger.log('保護できませんでした　' + sh.getName() + '　' + e.message);
+      }
+    });
+  });
+  return done;
+}
+
+
+/**
+ * シートの保護を外す
+ * ★手で直したいときに使う。直したら、もう一度 protectSheets を。
+ */
+function unprotectSheets() {
+  var props = PropertiesService.getScriptProperties();
+  var books = [
+    SpreadsheetApp.openById(props.getProperty('MAIN_BOOK_ID')),
+    SpreadsheetApp.openById(props.getProperty('PERSONAL_BOOK_ID'))
+  ];
+  var n = 0;
+  books.forEach(function (b) {
+    b.getSheets().forEach(function (sh) {
+      sh.getProtections(SpreadsheetApp.ProtectionType.SHEET)
+        .forEach(function (p) { p.remove(); n++; });
+    });
+  });
+  Logger.log('保護を外しました　' + n + '枚' + String.fromCharCode(10) +
+             '★直し終えたら、setupSheets() をもう一度動かして守り直してください。');
+  return n;
+}
+
+
 function setupSheets() {
   var mainId = PropertiesService.getScriptProperties().getProperty('MAIN_BOOK_ID');
   var persId = PropertiesService.getScriptProperties().getProperty('PERSONAL_BOOK_ID');
@@ -516,7 +589,18 @@ function setupSheets() {
     if (s && b.getSheets().length > 1) b.deleteSheet(s);
   });
 
+  // ★シートを守る。人が手で書き換えられないようにする。
+  //   生のデータは、システムだけが書く。
+  //   見たい方には閲覧の権限をお渡しし、
+  //   加工が必要ならコピーを取っていただく。
+  var locked = protectSheets(main, pers);
+
   var out = '作成したシート' + NLC + made.join(NLC);
+  if (locked.length) {
+    out += NLC + NLC + 'シートを保護しました（' + locked.length + '枚）' + NLC +
+           '　人が手で書き換えることはできません。' + NLC +
+           '　見るだけの方には、閲覧の権限をお渡しください。';
+  }
 
   if (warn.length) {
     // ★黙って進めない。ずれたことに気づけるのは、この瞬間だけ。
