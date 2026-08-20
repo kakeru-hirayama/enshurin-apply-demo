@@ -29,6 +29,23 @@
   header{background:var(--green); color:#fff; padding:14px 20px}
   header h1{font-size:17px; margin:0; font-weight:600}
   header .sub{font-size:12px; opacity:.8; margin-top:2px}
+  header .hrow{display:flex; align-items:flex-start;
+               justify-content:space-between; gap:14px; flex-wrap:wrap}
+  header .hlogin{font-size:12.5px; text-align:right; line-height:1.9}
+  header .hlogin button{
+    background:rgba(255,255,255,.16); color:#fff;
+    border:1px solid rgba(255,255,255,.4);
+    border-radius:4px; padding:4px 12px; font-size:12.5px; cursor:pointer;
+    font-family:inherit; margin-left:6px;
+  }
+  header .hlogin button:hover{background:rgba(255,255,255,.28)}
+  header .hlogin .who{opacity:.92}
+  table.my{width:100%; border-collapse:collapse; font-size:13px; margin-top:4px}
+  table.my th{background:#EDF1ED; text-align:left; padding:7px 9px;
+              border-bottom:1px solid var(--line); font-weight:600}
+  table.my td{padding:7px 9px; border-bottom:1px solid var(--line);
+              vertical-align:top}
+  table.my td.nw{white-space:nowrap}
 
   .wrap{max-width:820px; margin:0 auto; padding:20px 16px 70px}
 
@@ -146,8 +163,13 @@
 <body>
 
 <header>
-  <h1>東京大学演習林　利用申込</h1>
-  <div class="sub" id="hsub">試作　実際の送信は行いません</div>
+  <div class="hrow">
+    <div>
+      <h1>東京大学演習林　利用申込</h1>
+      <div class="sub" id="hsub">試作　実際の送信は行いません</div>
+    </div>
+    <div class="hlogin" id="hlogin"></div>
+  </div>
 </header>
 
 <div class="wrap">
@@ -163,7 +185,9 @@ if (typeof NL === "undefined") var NL = String.fromCharCode(10);
 <script src="../api/adapter_memory.js"></script>
 <script src="../api/api.js"></script>
 <script src="../api/deadline.js"></script>
+<script src="../api/auth.js"></script>
 <script src="../api/upload.js"></script>
+<script src="_login.js"></script>
 <script src="../api/seed_public.js"></script>
 <script src="../api/forms_seed.js"></script>
 <script>
@@ -191,6 +215,66 @@ var S = {
   me: null            // 参加者として登録する場面で使う
 };
 
+/* 画面に出す文字。生成の途中で壊れないよう、ここにまとめて置く */
+
+var UNDEF = 'undefined';
+
+var HLOGIN = 'hlogin';
+
+var APP = 'app';
+
+var EMPTY = '';
+
+var KIND_USER = 'user';
+
+var TBL_APP = 'T_APPLICATION';
+
+var SPAN_WHO = '<span class="who">';
+
+var SPAN_SAMA = ' 様</span>';
+
+var SPAN_HINT = '<span class="who">ログインすると、過去の申込を確認できます</span>';
+
+var BTN_MYAPPS = '<button onclick="showMyApps()">これまでの申込</button>';
+
+var BTN_SIGNOUT = '<button onclick="doSignOut()">ログアウト</button>';
+
+var BTN_SIGNIN = '<button onclick="doSignIn()">ログイン</button>';
+
+var TR_OPEN = '<tr>';
+
+var TR_CLOSE = '</tr>';
+
+var TD_OPEN = '<td>';
+
+var TD_NW = '<td class="nw">';
+
+var TD_CLOSE = '</td>';
+
+var RANGE = ' 〜 ';
+
+var CARD_OPEN = '<div class="card">';
+
+var CARD_CLOSE = '</div>';
+
+var H2_OPEN = '<h2>';
+
+var H2_CLOSE = '</h2>';
+
+var MY_APPS_TITLE = 'これまでの申込　';
+
+var KEN = ' 件';
+
+var TABLE_HEAD = '<table class="my"><thead><tr><th>受付番号</th><th>演習林</th><th>期間</th><th>利用目的</th><th>状態</th></tr></thead><tbody>';
+
+var TABLE_TAIL = '</tbody></table>';
+
+var NO_APPS = '<div class="msg">まだ申込がありません。<br>このメールアドレスでお申し込みいただくと、ここに並びます。</div>';
+
+var NEW_BTN = '<div style="margin-top:14px"><button class="btn" onclick="S.step=1;render()">新しく申し込む</button></div>';
+
+
+
 var STEPS = ['利用の内容', '参加者', '提出する書類', '確認'];
 
 function $(id){ return document.getElementById(id); }
@@ -209,8 +293,79 @@ function renderSteps(){
 }
 
 function render(){
+  renderLogin();
   renderSteps();
-  ({1:step1, 2:step2, 3:step3, 4:step4, 5:done, 9:profile})[S.step]();
+  ({1:step1, 2:step2, 3:step3, 4:step4, 5:done, 9:profile, 8:myApps})[S.step]();
+}
+
+/**
+ * ヘッダーのログイン欄
+ *
+ * ★ログインは、申込に必須ではない。
+ *   年に1回しか使わない方に、まずアカウントを作らせるのは、
+ *   申込をやめる理由を1つ増やすことになる。
+ *   「過去の申込が見られる」という利点だけを添える。
+ */
+function renderLogin(){
+  var el = $(HLOGIN);
+  if(!el) return;
+  var me = (typeof Auth !== UNDEF && Auth.current) ? Auth.current() : null;
+
+  if(me){
+    el.innerHTML =
+      SPAN_WHO + esc(me.name || me.email) + SPAN_SAMA +
+      BTN_MYAPPS + BTN_SIGNOUT;
+  }else{
+    el.innerHTML = SPAN_HINT + BTN_SIGNIN;
+  }
+}
+
+function doSignIn(){
+  LoginView.open(KIND_USER, function(){ render(); });
+}
+
+function doSignOut(){
+  if(typeof Auth !== UNDEF && Auth.signOut) Auth.signOut();
+  if(S.step === 8) S.step = 1;
+  render();
+}
+
+function showMyApps(){ S.step = 8; render(); }
+
+/**
+ * これまでの申込
+ * ★見えるのは自分のものだけ。絞るのはサーバー側で行っている
+ */
+function myApps(){
+  var me = (typeof Auth !== UNDEF && Auth.current) ? Auth.current() : null;
+  if(!me){ S.step = 1; render(); return; }
+
+  var all = API.adapter().readAll(TBL_APP) || [];
+  var list = all.filter(function(a){ return a.rep_user_id === me.id; });
+  list.sort(function(a,b){ return (b.date_from || EMPTY) < (a.date_from || EMPTY) ? -1 : 1; });
+
+  var forests = (API.getMasters().forests || []);
+  function forestName(id){
+    for(var i=0;i<forests.length;i++){ if(forests[i].forest_id===id) return forests[i].name; }
+    return id;
+  }
+
+  var rows = list.map(function(a){
+    return TR_OPEN +
+      TD_NW + esc(a.app_id) + TD_CLOSE +
+      TD_NW + esc(forestName(a.forest_id)) + TD_CLOSE +
+      TD_NW + esc(a.date_from) + RANGE + esc(a.date_to) + TD_CLOSE +
+      TD_OPEN + esc(a.purpose) + TD_CLOSE +
+      TD_NW + esc(a.status) + TD_CLOSE +
+    TR_CLOSE;
+  }).join(EMPTY);
+
+  $(APP).innerHTML =
+    CARD_OPEN +
+      H2_OPEN + MY_APPS_TITLE + list.length + KEN + H2_CLOSE +
+      (list.length ? TABLE_HEAD + rows + TABLE_TAIL : NO_APPS) +
+      NEW_BTN +
+    CARD_CLOSE;
 }
 
 // ============================================ 1　利用の内容
