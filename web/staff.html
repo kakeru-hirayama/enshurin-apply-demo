@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>演習林 利用申込システム　職員画面</title>
+<style>
+  :root{
+    --navy:#1F3864; --navy-mid:#3D5A8A; --navy-pale:#E9EEF6;
+    --gray:#666; --line:#D8DDE5; --pale:#F5F7FA;
+    --accent:#B02418; --accent-pale:#FBEDEC; --ok:#4A7A4A;
+    --bg:#FFFFFF; --fg:#222;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+    color:var(--fg); background:var(--bg); font-size:14px; line-height:1.6;
+  }
+  header{
+    background:var(--navy); color:#fff; padding:10px 18px;
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  }
+  header h1{font-size:15px; margin:0; font-weight:600; letter-spacing:.02em}
+  header .sub{font-size:11px; opacity:.75}
+  header select{
+    background:#2C4A7C; color:#fff; border:1px solid #4A6A9C;
+    padding:4px 8px; border-radius:3px; font-size:12px;
+  }
+  header .spacer{flex:1}
+  header .who{font-size:12px; opacity:.9}
+
+  nav{
+    display:flex; gap:2px; background:var(--pale);
+    border-bottom:1px solid var(--line); padding:0 12px;
+  }
+  nav button{
+    background:none; border:none; padding:9px 16px; cursor:pointer;
+    font-size:13px; color:var(--gray); border-bottom:2px solid transparent;
+    font-family:inherit;
+  }
+  nav button:hover{color:var(--navy); background:#EDF1F7}
+  nav button.on{color:var(--navy); border-bottom-color:var(--navy); font-weight:600}
+
+  main{padding:16px 18px 60px}
+  .panel{display:none}
+  .panel.on{display:block}
+
+  .bar{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    margin-bottom:12px; padding:9px 12px; background:var(--pale);
+    border:1px solid var(--line); border-radius:4px;
+  }
+  .bar label{font-size:12px; color:var(--gray)}
+  .bar input, .bar select{
+    padding:4px 7px; border:1px solid var(--line); border-radius:3px;
+    font-size:13px; font-family:inherit;
+  }
+  .bar .count{margin-left:auto; font-size:12px; color:var(--gray)}
+
+  table{border-collapse:collapse; width:100%; font-size:13px}
+  th{
+    background:var(--navy); color:#fff; padding:7px 9px; text-align:left;
+    font-weight:600; font-size:12px; white-space:nowrap; position:sticky; top:0;
+  }
+  td{padding:6px 9px; border-bottom:1px solid var(--line); vertical-align:top}
+  tbody tr:hover{background:var(--navy-pale); cursor:pointer}
+  td.num{text-align:right; white-space:nowrap}
+  td.nowrap{white-space:nowrap}
+
+  .chip{
+    display:inline-block; padding:1px 8px; border-radius:10px;
+    font-size:11px; color:#fff; white-space:nowrap;
+  }
+  .warn{color:var(--accent); font-weight:600}
+
+  /* カレンダー */
+  .cal{display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--line);
+       border:1px solid var(--line)}
+  .cal .head{background:var(--navy); color:#fff; padding:5px; text-align:center;
+             font-size:11px; font-weight:600}
+  .cal .cell{background:#fff; min-height:82px; padding:4px 5px; font-size:11px}
+  .cal .cell.other{background:#FAFBFC; color:#BBB}
+  .cal .cell.sat .d{color:#3D5A8A}
+  .cal .cell.sun .d{color:var(--accent)}
+  .cal .d{font-weight:600; font-size:12px; margin-bottom:2px}
+  .cal .ev{
+    background:var(--navy-pale); border-left:3px solid var(--navy-mid);
+    padding:1px 4px; margin-bottom:2px; border-radius:2px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer;
+  }
+  .cal .ev:hover{background:#D8E2F0}
+  .cal .more{color:var(--gray); font-size:10px}
+
+  /* 詳細 */
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+  .card{border:1px solid var(--line); border-radius:4px; margin-bottom:14px}
+  .card h3{
+    margin:0; padding:7px 11px; background:var(--pale); font-size:12px;
+    color:var(--navy); border-bottom:1px solid var(--line); font-weight:600;
+  }
+  .card .body{padding:10px 12px}
+  dl{margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px}
+  dt{color:var(--gray); white-space:nowrap; font-size:12px}
+  dd{margin:0}
+  .tl{border-left:2px solid var(--line); margin-left:6px; padding-left:12px}
+  .tl .it{position:relative; padding-bottom:9px; font-size:12.5px}
+  .tl .it::before{
+    content:''; position:absolute; left:-17px; top:6px; width:7px; height:7px;
+    border-radius:50%; background:var(--navy-mid);
+  }
+  .tl .it .t{color:var(--gray); font-size:11px}
+
+  .empty{padding:26px; text-align:center; color:var(--gray); font-size:13px}
+  .note{font-size:11.5px; color:var(--gray); margin-top:6px}
+  .btn{
+    padding:4px 11px; border:1px solid var(--navy-mid); background:#fff;
+    color:var(--navy); border-radius:3px; cursor:pointer; font-size:12px;
+    font-family:inherit;
+  }
+  .btn:hover{background:var(--navy-pale)}
+  .btn.acc{border-color:var(--accent); color:var(--accent)}
+  .btn.acc:hover{background:var(--accent-pale)}
+  .back{margin-bottom:12px}
+
+  .banner{
+    background:var(--accent-pale); border:1px solid var(--accent);
+    color:var(--accent); padding:7px 11px; border-radius:3px;
+    font-size:12px; margin-bottom:12px;
+  }
+  .devnote{
+    margin-top:24px; padding:10px 12px; background:var(--pale);
+    border:1px dashed var(--line); border-radius:4px;
+    font-size:11.5px; color:var(--gray); line-height:1.75;
+  }
+  .devnote b{color:var(--navy)}
+  @media(max-width:900px){ .cols{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>演習林 利用申込システム</h1>
+  <span class="sub">職員画面　試作</span>
+  <select id="forest"></select>
+  <span class="spacer"></span>
+  <span class="who" id="who">担当者A（施設担当者）</span>
+</header>
+
+<nav>
+  <button data-tab="cal" class="on">カレンダー</button>
+  <button data-tab="list">申込一覧</button>
+  <button data-tab="person">代表者ごと</button>
+  <button data-tab="rooms">宿泊の空き</button>
+  <button data-tab="nenpo">年報の集計</button>
+  <button data-tab="audit">操作の記録</button>
+</nav>
+
+<main>
+  <div class="panel on" id="p-cal"></div>
+  <div class="panel" id="p-list"></div>
+  <div class="panel" id="p-person"></div>
+  <div class="panel" id="p-rooms"></div>
+  <div class="panel" id="p-nenpo"></div>
+  <div class="panel" id="p-audit"></div>
+  <div class="panel" id="p-detail"></div>
+</main>
+
+<script src="../api/schema.js"></script>
+<script src="../api/adapter_memory.js"></script>
+<script src="../api/api.js"></script>
+<script src="../api/deadline.js"></script>
+<script src="../api/export.js"></script>
+<script src="../api/seed.js"></script>
+<script src="../api/forms_seed.js"></script>
+<script>
+/* ------------------------------------------------------------------
+   画面側のコード
+
+   ★ここから下は、データがどこにどう保存されているかを一切知らない。
+     API.getApplications( ) のような窓口を呼ぶだけである。
+     保存先をスプレッドシートに変えても、このファイルは1行も変わらない。
+------------------------------------------------------------------ */
+
+var state = { forest:'HKD', tab:'cal', month:'2025-08', staff:'S001' };
+
+function $(id){ return document.getElementById(id); }
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+  });
+}
+function fmtDate(s){
+  if(!s) return '';
+  var p = String(s).split('-');
+  return p.length===3 ? (p[1]*1)+'/'+(p[2]*1) : s;
+}
+
+// ------------------------------------------------ 起動
+// 様式定義は、7施設の公開ページを調べた結果に差し替える（2026-08-19）
+if (typeof FORMS_SEED !== 'undefined') SEED.M_FORM = FORMS_SEED;
+loadSeed(MemoryAdapter);
+
+(function init(){
+  var m = API.getMasters();
+  $('forest').innerHTML = m.forests.map(function(f){
+    return '<option value="'+f.forest_id+'">'+esc(f.name)+'</option>';
+  }).join('');
+  $('forest').value = state.forest;
+  $('forest').onchange = function(){ state.forest = this.value; render(); };
+
+  document.querySelectorAll('nav button').forEach(function(b){
+    b.onclick = function(){
+      document.querySelectorAll('nav button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      state.tab = b.dataset.tab;
+      render();
+    };
+  });
+
+  // 最新の申込がある月を初期表示にする
+  var apps = API.getApplications({forest_id:state.forest});
+  if(apps.length) state.month = apps[0].date_from.slice(0,7);
+
+  render();
+})();
+
+function render(){
+  document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('on'); });
+  var id = 'p-' + state.tab;
+  $(id).classList.add('on');
+  ({cal:renderCalendar, list:renderList, person:renderPerson, rooms:renderRooms,
+    nenpo:renderNenpo, audit:renderAudit, detail:renderDetail})[state.tab]();
+}
+
+// ================================================ カレンダー
+function renderCalendar(){
+  var ym = state.month.split('-');
+  var y = +ym[0], mo = +ym[1];
+  var first = new Date(y, mo-1, 1);
+  var start = new Date(first); start.setDate(1 - first.getDay());
+  var end = new Date(y, mo, 0);
+  var last = new Date(end); last.setDate(end.getDate() + (6 - end.getDay()));
+
+  var iso = function(d){
+    return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+  };
+  var cal = API.getCalendar({
+    forest_id: state.forest, from: iso(start), to: iso(last)
+  });
+  var byDate = {};
+  cal.forEach(function(c){ byDate[c.date] = c; });
+
+  var cells = '';
+  var d = new Date(start);
+  while(d <= last){
+    var k = iso(d);
+    var c = byDate[k];
+    var cls = 'cell' + (d.getMonth()+1 !== mo ? ' other' : '') +
+              (d.getDay()===0 ? ' sun' : d.getDay()===6 ? ' sat' : '');
+    var ev = '';
+    if(c){
+      c.applications.slice(0,3).forEach(function(a){
+        ev += '<div class="ev" onclick="openDetail(\''+a.app_id+'\');event.stopPropagation()" '+
+              'title="'+esc(a.purpose)+'">'+esc(a.rep_name)+'</div>';
+      });
+      if(c.applications.length > 3){
+        ev += '<div class="more">ほか '+(c.applications.length-3)+' 件</div>';
+      }
+      if(c.n_lodging) ev += '<div class="more">宿泊 '+c.n_lodging+' 名</div>';
+    }
+    cells += '<div class="'+cls+'"><div class="d">'+d.getDate()+'</div>'+ev+'</div>';
+    d.setDate(d.getDate()+1);
+  }
+
+  var total = cal.reduce(function(s,c){ return s + c.n_apps; }, 0);
+  $('p-cal').innerHTML =
+    '<div class="bar">'+
+      '<button class="btn" onclick="moveMonth(-1)">前の月</button>'+
+      '<strong style="font-size:15px">'+y+'年 '+mo+'月</strong>'+
+      '<button class="btn" onclick="moveMonth(1)">次の月</button>'+
+      '<button class="btn" onclick="dlMonthlyReport()">この月の報告をWordで出す</button>'+'<span class="count">この月の利用日数の延べ '+total+' 件</span>'+
+    '</div>'+
+    '<div class="cal">'+
+      ['日','月','火','水','木','金','土'].map(function(w){
+        return '<div class="head">'+w+'</div>';
+      }).join('')+
+      cells+
+    '</div>'+
+    '<div class="note">日付を軸にした画面。件数が多く、宿泊の重なりを見る必要がある演習林向け。</div>'+
+    devNote('getCalendar( ) を1回呼ぶだけで描いている');
+}
+
+function moveMonth(n){
+  var p = state.month.split('-');
+  var d = new Date(+p[0], +p[1]-1+n, 1);
+  state.month = d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
+  renderCalendar();
+}
+
+// ================================================ 申込一覧
+function renderList(){
+  var m = API.getMasters(state.forest);
+  var apps = API.getApplications({
+    forest_id: state.forest,
+    status: state.filterStatus || '',
+    keyword: state.keyword || ''
+  });
+
+  var rows = apps.map(function(a){
+    var full = API.getApplication(a.app_id);
+    return '<tr onclick="openDetail(\''+a.app_id+'\')">'+
+      '<td class="nowrap">'+esc(a.app_id)+'</td>'+
+      '<td class="nowrap">'+fmtDate(a.date_from)+' 〜 '+fmtDate(a.date_to)+'</td>'+
+      '<td class="num">'+full.n_days+'</td>'+
+      '<td>'+esc(a.rep_name)+'</td>'+
+      '<td>'+esc(a.rep_org)+'</td>'+
+      '<td>'+esc(a.purpose).slice(0,42)+'</td>'+
+      '<td class="num">'+full.total_people+'</td>'+
+      '<td><span class="chip" style="background:'+a.status_color+'">'+
+        esc(a.status_label)+'</span></td>'+
+      '<td class="nowrap">'+(full.n_unregistered ?
+        '<span class="warn">未登録 '+full.n_unregistered+'</span>' : '—')+'</td>'+
+    '</tr>';
+  }).join('');
+
+  $('p-list').innerHTML =
+    '<div class="bar">'+
+      '<label>ステータス</label>'+
+      '<select onchange="state.filterStatus=this.value;renderList()">'+
+        '<option value="">すべて</option>'+
+        m.statuses.map(function(s){
+          return '<option value="'+s.code+'"'+
+            (state.filterStatus===s.code?' selected':'')+'>'+esc(s.label)+'</option>';
+        }).join('')+
+      '</select>'+
+      '<label>検索</label>'+
+      '<input type="text" value="'+esc(state.keyword||'')+'" placeholder="代表者・所属・目的" '+
+        'oninput="state.keyword=this.value;renderList()" style="width:210px">'+
+      '<span class="count">'+apps.length+' 件</span>'+
+    '</div>'+
+    (apps.length ?
+      '<table><thead><tr>'+
+        '<th>申込ID</th><th>期間</th><th>日数</th><th>代表者</th><th>所属</th>'+
+        '<th>利用目的</th><th>人数</th><th>ステータス</th><th>個人情報</th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table>'
+      : '<div class="empty">該当する申込がありません</div>')+
+    devNote('getApplications( ) で絞り込み、getApplication( ) で明細を取っている');
+}
+
+// ================================================ 代表者ごと
+function renderPerson(){
+  var apps = API.getApplications({forest_id: state.forest});
+  var byUser = {};
+  apps.forEach(function(a){
+    if(!byUser[a.rep_user_id]) byUser[a.rep_user_id] = {name:a.rep_name, org:a.rep_org, list:[]};
+    byUser[a.rep_user_id].list.push(a);
+  });
+
+  var keys = Object.keys(byUser).sort(function(x,y){
+    return byUser[x].name.localeCompare(byUser[y].name, 'ja');
+  });
+
+  var html = keys.map(function(k){
+    var u = byUser[k];
+    return '<div class="card">'+
+      '<h3>'+esc(u.name)+'　<span style="color:var(--gray);font-weight:400">'+
+        esc(u.org)+'　'+u.list.length+'件</span></h3>'+
+      '<div class="body"><table><tbody>'+
+        u.list.map(function(a){
+          return '<tr onclick="openDetail(\''+a.app_id+'\')">'+
+            '<td class="nowrap" style="width:120px">'+fmtDate(a.date_from)+' 〜 '+
+              fmtDate(a.date_to)+'</td>'+
+            '<td>'+esc(a.purpose).slice(0,50)+'</td>'+
+            '<td class="nowrap" style="width:90px"><span class="chip" '+
+              'style="background:'+a.status_color+'">'+esc(a.status_label)+'</span></td>'+
+          '</tr>';
+        }).join('')+
+      '</tbody></table></div>'+
+    '</div>';
+  }).join('');
+
+  $('p-person').innerHTML =
+    '<div class="banner">富士癒しの森研究所で運用されている、'+
+      '利用代表者ごとの紙のファイルを画面にしたもの。'+
+      'データはカレンダーと同じものを使っている。</div>'+
+    (html || '<div class="empty">申込がありません</div>')+
+    devNote('同じ getApplications( ) の結果を、代表者で束ねているだけ');
+}
+
+// ================================================ 宿泊の空き
+function renderRooms(){
+  var m = API.getMasters(state.forest);
+  var beds = m.facilities.filter(function(f){ return f.kind==='宿泊'; });
+  var ym = state.month;
+  var from = ym+'-01';
+  var days = new Date(+ym.slice(0,4), +ym.slice(5,7), 0).getDate();
+  var to = ym+'-'+days;
+
+  if(!beds.length){
+    $('p-rooms').innerHTML = '<div class="empty">この演習林には宿泊施設が登録されていません</div>';
+    return;
+  }
+
+  var head = '<th style="width:170px">施設</th>';
+  for(var i=1;i<=days;i++) head += '<th style="text-align:center">'+i+'</th>';
+
+  var body = beds.map(function(f){
+    var av = API.getFacilityAvailability(f.facility_id, from, to);
+    var cells = av.map(function(a){
+      var bg = a.used ? (a.is_full ? 'var(--accent-pale)' : 'var(--navy-pale)') : '';
+      var col = a.is_full ? 'var(--accent)' : 'var(--navy)';
+      return '<td style="text-align:center;background:'+bg+';color:'+col+'">'+
+             (a.used || '') + '</td>';
+    }).join('');
+    return '<tr><td class="nowrap">'+esc(f.name)+
+      '<span style="color:var(--gray);font-size:11px">'+
+      (f.capacity ? '　定員'+f.capacity : '')+'</span></td>'+cells+'</tr>';
+  }).join('');
+
+  $('p-rooms').innerHTML =
+    '<div class="bar">'+
+      '<button class="btn" onclick="moveMonth(-1);renderRooms()">前の月</button>'+
+      '<strong>'+ym.replace('-','年 ')+'月</strong>'+
+      '<button class="btn" onclick="moveMonth(1);renderRooms()">次の月</button>'+
+      '<span class="count">数字は宿泊人数</span>'+
+    '</div>'+
+    '<div style="overflow-x:auto"><table style="font-size:11px">'+
+      '<thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div>'+
+    '<div class="note">日付と施設の掛け合わせで重なりを見る。'+
+      '紙では最も扱いにくかった部分。</div>'+
+    devNote('getFacilityAvailability( ) を施設ごとに呼んでいる');
+}
+
+// ================================================ 年報の集計
+function renderNenpo(){
+  var rows = API.exportNenpo(state.forest, 2025);
+  var sum = rows.reduce(function(s,r){
+    s.days += r.days; s.total += r.total; return s;
+  }, {days:0, total:0});
+
+  $('p-nenpo').innerHTML =
+    '<div class="banner">現在エクセルの数式で行われている集計を、'+
+      'この画面が置き換える。ボタン1つで年報の様式のまま出る。</div>'+
+    '<div class="bar">'+
+      '<strong>2025年度</strong>'+
+      '<button class="btn" onclick="dlNenpoExcel()">Excelで出す</button>'+
+      '<button class="btn" onclick="dlNenpoWord()">Wordで出す</button>'+
+      '<button class="btn" onclick="dlMonthlyCsv()">本部へ送る形式（CSV）</button>'+
+      '<span class="count">'+rows.length+' 件　延べ '+sum.days+' 日　'+
+        sum.total+' 名</span>'+
+    '</div>'+
+    '<table><thead><tr>'+
+      '<th>No</th><th>月</th><th>日数</th><th>代表者所属</th>'+
+      '<th>教職員</th><th>学生</th><th>院生</th><th>その他</th><th>計</th>'+
+      '<th>利用目的</th><th>宿泊施設</th>'+
+    '</tr></thead><tbody>'+
+      rows.map(function(r){
+        return '<tr>'+
+          '<td class="num">'+r.no+'</td>'+
+          '<td class="num">'+r.month+'</td>'+
+          '<td class="num">'+r.days+'</td>'+
+          '<td>'+esc(r.rep_org).slice(0,26)+'</td>'+
+          '<td class="num">'+(r.staff||'')+'</td>'+
+          '<td class="num">'+(r.student||'')+'</td>'+
+          '<td class="num">'+(r.grad||'')+'</td>'+
+          '<td class="num">'+(r.other||'')+'</td>'+
+          '<td class="num"><b>'+r.total+'</b></td>'+
+          '<td>'+esc(r.purpose).slice(0,34)+'</td>'+
+          '<td class="nowrap">'+esc(r.lodging)+'</td>'+
+        '</tr>';
+      }).join('')+
+    '</tbody></table>'+
+    devNote('exportNenpo( ) を1回呼ぶだけ。列を足す数式も、施設ごとの分岐も要らない');
+}
+
+// ================================================ 操作の記録
+function renderAudit(){
+  var rows = API.getAudit({});
+  $('p-audit').innerHTML =
+    '<div class="banner">誰がいつ何をしたかが残る。'+
+      'これがあるから、緊急連絡先を通常は伏せておける。</div>'+
+    (rows.length ?
+      '<table><thead><tr><th>日時</th><th>操作者</th><th>操作</th>'+
+      '<th>対象</th><th>内容</th></tr></thead><tbody>'+
+      rows.map(function(r){
+        var acc = r.action.indexOf('緊急') >= 0;
+        return '<tr'+(acc?' style="background:var(--accent-pale)"':'')+'>'+
+          '<td class="nowrap">'+esc(r.at)+'</td>'+
+          '<td>'+esc(r.staff_id)+'</td>'+
+          '<td'+(acc?' class="warn"':'')+'>'+esc(r.action)+'</td>'+
+          '<td>'+esc(r.target)+'</td>'+
+          '<td>'+esc(r.detail)+'</td>'+
+        '</tr>';
+      }).join('')+'</tbody></table>'
+      : '<div class="empty">まだ記録がありません。'+
+        '申込の詳細でステータスを変えるか、緊急連絡先を開くと記録されます。</div>')+
+    devNote('getAudit( ) で取得。書き込みは API 層が自動で行っている');
+}
+
+// ================================================ 申込の詳細
+function openDetail(appId){
+  state.appId = appId;
+  state.tab = 'detail';
+  document.querySelectorAll('nav button').forEach(function(x){ x.classList.remove('on'); });
+  render();
+}
+
+function renderDetail(){
+  var a = API.getApplication(state.appId);
+  if(!a){ $('p-detail').innerHTML = '<div class="empty">見つかりません</div>'; return; }
+
+  var m = API.getMasters(state.forest);
+  var parts = API.getParticipants(a.app_id, '施設担当者');
+  var missing = API.getMissingForms(a.app_id);
+
+  var st = null;
+  m.statuses.forEach(function(s){ if(s.code === a.status) st = s; });
+  var nexts = st ? (st.next_codes || []) : [];
+
+  $('p-detail').innerHTML =
+    '<div class="back"><button class="btn" onclick="backToList()">← 一覧へ戻る</button></div>'+
+    '<h2 style="font-size:16px;color:var(--navy);margin:0 0 4px">'+esc(a.purpose)+'</h2>'+
+    '<div style="color:var(--gray);font-size:12px;margin-bottom:14px">'+
+      esc(a.app_id)+'　'+esc(a.rep_name)+'（'+esc(a.rep_org)+'）</div>'+
+
+    '<div class="cols">'+
+    '<div>'+
+      '<div class="card"><h3>申込の内容</h3><div class="body"><dl>'+
+        '<dt>期間</dt><dd>'+a.date_from+' 〜 '+a.date_to+'（'+a.n_days+'日）</dd>'+
+        '<dt>区分</dt><dd>'+esc(a.category)+'</dd>'+
+        '<dt>場所</dt><dd>'+esc(a.place)+'</dd>'+
+        '<dt>人数</dt><dd>'+a.total_people+' 名</dd>'+
+        '<dt>申請日</dt><dd>'+esc(a.applied_at)+'</dd>'+
+        '<dt>許可日</dt><dd>'+esc(a.approved_at||'—')+'</dd>'+
+      '</dl></div></div>'+
+
+      '<div class="card"><h3>ステータス</h3><div class="body">'+
+        '<div style="margin-bottom:9px"><span class="chip" '+
+          'style="background:'+a.status_color+';font-size:12px;padding:3px 12px">'+
+          esc(a.status_label)+'</span></div>'+
+        (nexts.length ?
+          '<div style="font-size:12px;color:var(--gray);margin-bottom:5px">次に進める先</div>'+
+          nexts.map(function(c){
+            return '<button class="btn" style="margin-right:5px" '+
+              'onclick="changeStatus(\''+a.app_id+'\',\''+c+'\')">'+esc(c)+'</button>';
+          }).join('')
+          : '<div style="font-size:12px;color:var(--gray)">最終の状態です</div>')+
+        '<div class="note">★状態の定義は演習林ごとに設定できる。'+
+          'ここは仮置きで、9月のヒアリングで確定する。</div>'+
+      '</div></div>'+
+
+      '<div class="card"><h3>参加者　'+parts.length+'名'+
+        '<button class="btn" style="float:right;margin-top:-2px" '+
+        'onclick="dlParticipants(\''+a.app_id+'\')">名簿をExcelで出す</button>'+
+        '</h3><div class="body">'+
+        '<table><thead><tr><th>氏名</th><th>身分</th><th>年齢</th>'+
+        '<th>アレルギー</th><th>緊急連絡先</th><th>登録</th></tr></thead><tbody>'+
+        parts.map(function(p){
+          return '<tr>'+
+            '<td>'+esc(p.name)+'</td>'+
+            '<td>'+esc(p.status_type||'')+'</td>'+
+            '<td class="num">'+(p.age!=null?p.age:'')+'</td>'+
+            '<td>'+esc(p.allergy||'—')+'</td>'+
+            '<td>'+(p.has_emergency ?
+              '<button class="btn acc" onclick="openEmergency(\''+p.user_id+'\')">'+
+              '開く</button>' : '—')+'</td>'+
+            '<td>'+(p.reg_status==='登録済' ? '済' :
+              '<span class="warn">'+esc(p.reg_status)+'</span>')+'</td>'+
+          '</tr>';
+        }).join('')+'</tbody></table>'+
+        '<div class="note">★緊急連絡先は通常は表示しない。'+
+          '開くと操作の記録に残る。代表者にはこの表自体が見えない。</div>'+
+      '</div></div>'+
+    '</div>'+
+
+    '<div>'+
+      '<div class="card"><h3>資料　'+a.documents.length+'件</h3><div class="body">'+
+        (a.documents.length ?
+          '<div class="tl">'+a.documents.map(function(d){
+            return '<div class="it"><div class="t">'+esc(d.submitted_at)+'　'+
+              esc(d.phase)+'</div>'+esc(d.file_name)+'</div>';
+          }).join('')+'</div>'
+          : '<div style="color:var(--gray);font-size:12px">まだありません</div>')+
+        (missing.length ?
+          '<div class="note warn">未提出　'+
+            missing.map(function(f){ return esc(f.form_code)+' '+esc(f.name); }).join('／')+
+          '</div>' : '')+
+      '</div></div>'+
+
+      '<div class="card"><h3>やり取りの記録</h3><div class="body">'+
+        (a.messages.length ?
+          '<div class="tl">'+a.messages.map(function(x){
+            return '<div class="it"><div class="t">'+esc(x.at)+'　'+esc(x.kind)+
+              '　'+esc(x.from)+'</div>'+esc(x.body)+'</div>';
+          }).join('')+'</div>'
+          : '<div style="color:var(--gray);font-size:12px">まだありません</div>')+
+        '<div class="note">★受理から許可までの間、および許可の後のやり取りを'+
+          'ここに残す。現在はメールに散らばっていて後から探せない。</div>'+
+      '</div></div>'+
+
+      '<div class="card"><h3>宿泊</h3><div class="body">'+
+        (a.lodgings.length ?
+          '<table><tbody>'+a.lodgings.map(function(l){
+            var f = null;
+            m.facilities.forEach(function(x){ if(x.facility_id===l.facility_id) f = x; });
+            return '<tr><td>'+esc(l.date)+'</td><td>'+esc(f?f.name:l.facility_id)+
+              '</td><td class="num">'+l.count+' 名</td></tr>';
+          }).join('')+'</tbody></table>'
+          : '<div style="color:var(--gray);font-size:12px">日帰り</div>')+
+      '</div></div>'+
+    '</div>'+
+    '</div>'+
+    devNote('getApplication( ) 1回で、日付・参加者・資料・やり取りまで揃う');
+}
+
+function backToList(){
+  state.tab = 'list';
+  document.querySelectorAll('nav button').forEach(function(x){
+    if(x.dataset.tab==='list') x.classList.add('on');
+  });
+  render();
+}
+
+function changeStatus(appId, to){
+  var r = API.updateStatus(appId, to, state.staff, '');
+  if(r.ok) renderDetail();
+}
+
+function openEmergency(userId){
+  var r = API.openEmergencyContact(userId, state.staff, '職員画面から開いた');
+  if(r) alert(r.name + ' さんの緊急連絡先\n\n' + r.emergency +
+              '\n\n※この操作は記録に残りました');
+  renderDetail();
+}
+
+// ================================================ 書き出し
+function forestName(){
+  var f = API.getMasters().forests.filter(function(x){
+    return x.forest_id === state.forest; })[0];
+  return f ? f.name : state.forest;
+}
+
+function dlNenpoExcel(){
+  var rows = API.exportNenpo(state.forest, 2025);
+  Exporter.nenpoExcel(forestName(), 2025, rows);
+}
+
+function dlNenpoWord(){
+  var rows = API.exportNenpo(state.forest, 2025);
+  Exporter.nenpoWord(forestName(), 2025, rows);
+}
+
+function dlMonthlyCsv(){
+  var ym = state.month;
+  var rows = API.exportMonthly(state.forest, ym);
+  if(!rows.length){ alert(ym + ' の利用がありません'); return; }
+  Exporter.monthlyCsv(forestName(), ym, rows);
+}
+
+function dlMonthlyReport(){
+  var ym = state.month;
+  var apps = API.getApplications({
+    forest_id: state.forest, from: ym+'-01', to: ym+'-31'
+  }).map(function(a){
+    var full = API.getApplication(a.app_id);
+    a.n_days = full.n_days; a.total_people = full.total_people;
+    a.lodging = full.lodgings.length ? '宿泊' : '日帰り';
+    return a;
+  });
+  if(!apps.length){ alert(ym + ' の利用がありません'); return; }
+  Exporter.monthlyReportWord(forestName(), ym, apps);
+}
+
+function dlParticipants(appId){
+  var a = API.getApplication(appId);
+  var p = API.getParticipants(appId, '施設担当者');
+  API.getAudit; // 名簿の出力も記録に残すべき箇所（本番で追加する）
+  Exporter.participantsExcel(a, p);
+}
+
+function devNote(text){
+  return '<div class="devnote"><b>この画面が呼んでいるもの</b>　'+esc(text)+'<br>'+
+    '画面側のコードは、データがスプレッドシートにあるかMySQLにあるかを知らない。'+
+    '保存先を変えても、この画面は書き換えなくてよい。</div>';
+}
+</script>
+</body>
+</html>
