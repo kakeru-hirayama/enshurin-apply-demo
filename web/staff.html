@@ -15,6 +15,16 @@
   body{
     margin:0; font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
     color:var(--fg); background:var(--bg); font-size:14px; line-height:1.6;
+
+    /* ★Apps Script は、この画面を高さの決まった枠（iframe）の中に置く。
+         枠は中身の長さに合わせて伸びないため、
+         小さい画面では下半分に手が届かなくなる。
+         （2026-08-20  ウィンドウ 638×670 で「次へ」が押せない状態を確認）
+
+         枠が伸びないなら、こちらの中でスクロールできるようにする。 */
+    height:100vh;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
   }
   header{
     background:var(--navy); color:#fff; padding:10px 18px;
@@ -170,12 +180,16 @@
   <div class="panel" id="p-detail"></div>
 </main>
 
+<script>
+/* 改行。文字列の中に直接書くと、生成の過程で壊れることがある */
+if (typeof NL === "undefined") var NL = String.fromCharCode(10);
+</script>
 <script src="../api/schema.js"></script>
 <script src="../api/adapter_memory.js"></script>
 <script src="../api/api.js"></script>
 <script src="../api/deadline.js"></script>
 <script src="../api/export.js"></script>
-<script src="../api/seed.js"></script>
+<script src="../api/seed_public.js"></script>
 <script src="../api/auth.js"></script>
 <script src="../api/forms_seed.js"></script>
 <script src="_login.js"></script>
@@ -535,7 +549,11 @@ function renderDetail(){
   if(!a){ $('p-detail').innerHTML = '<div class="empty">見つかりません</div>'; return; }
 
   var m = API.getMasters(state.forest);
-  var parts = API.getParticipants(a.app_id, '施設担当者');
+  // ★役割を決め打ちにしない。いま入っている人の役割で見る。
+  //   （サーバー側でも個人情報は落としているが、
+  //     画面側でも同じ判断にしておかないと、後から食い違う）
+  var meNow = Auth.current();
+  var parts = API.getParticipants(a.app_id, meNow ? meNow.role : '');
   var missing = API.getMissingForms(a.app_id);
 
   var st = null;
@@ -570,8 +588,44 @@ function renderDetail(){
               'onclick="changeStatus(\''+a.app_id+'\',\''+c+'\')">'+esc(c)+'</button>';
           }).join('')
           : '<div style="font-size:12px;color:var(--gray)">最終の状態です</div>')+
+        // ★決められた順路の外にも動かせるようにする。
+        //   実務では「一度戻す」「間違えて進めた」が必ず起きる。
+        //   順路しか通れないと、そのたびに管理者を呼ぶことになる。
+        '<details style="margin-top:10px">'+
+          '<summary style="font-size:12px;color:var(--gray);cursor:pointer">'+
+            'ほかの状態にする</summary>'+
+          '<div style="margin-top:7px">'+
+            '<select id="st-any" style="padding:5px;font-size:12.5px">'+
+              m.statuses.map(function(x){
+                return '<option value="'+x.code+'"'+
+                  (x.code===a.status?' selected':'')+'>'+esc(x.label)+'</option>';
+              }).join('')+
+            '</select> '+
+            '<input type="text" id="st-why" placeholder="理由（記録に残ります）" '+
+              'style="padding:5px;font-size:12.5px;width:210px">'+
+            '<button class="btn" style="margin-left:5px" '+
+              'onclick="forceStatus(\''+a.app_id+'\')">変える</button>'+
+            '<div class="note">誰がいつ何のために変えたかが記録に残る。</div>'+
+          '</div>'+
+        '</details>'+
         '<div class="note">★状態の定義は演習林ごとに設定できる。'+
           'ここは仮置きで、9月のヒアリングで確定する。</div>'+
+      '</div></div>'+
+
+      // 職員だけが見る覚え書き。★申込者には見えない
+      '<div class="card"><h3>職員メモ</h3><div class="body">'+
+        '<textarea id="memo" rows="4" style="width:100%;padding:8px;'+
+          'font-size:13px;font-family:inherit;border:1px solid var(--line);'+
+          'border-radius:4px;line-height:1.7" '+
+          'placeholder="電話で伺ったことなど。申込者には表示されません">'+
+          esc(a.staff_memo||'')+'</textarea>'+
+        '<div style="margin-top:6px">'+
+          '<button class="btn" onclick="saveMemo(\''+a.app_id+'\')">保存</button>'+
+          '<span id="memo-msg" style="font-size:12px;color:var(--gray);'+
+            'margin-left:9px"></span>'+
+        '</div>'+
+        '<div class="note">★この欄がないと、電話で聞いたことが'+
+          '職員個人の手元にしか残らない。</div>'+
       '</div></div>'+
 
       '<div class="card"><h3>参加者　'+parts.length+'名'+
@@ -651,6 +705,41 @@ function changeStatus(appId, to){
   if(r.ok) renderDetail();
 }
 
+/**
+ * 決められた順路の外へ動かす
+ * ★理由を必ず残す。残さないと、後から見て何があったのか分からない。
+ */
+function forceStatus(appId){
+  var to  = ($('st-any')||{}).value || '';
+  var why = (($('st-why')||{}).value || '').trim();
+  if(!to) return;
+  if(!why){
+    alert('順路の外へ動かすときは、理由をご入力ください。');
+    return;
+  }
+  var r = API.updateStatus(appId, to, state.staff, '［順路外］'+why);
+  if(r && r.ok){ renderDetail(); }
+  else { alert('変えられませんでした' + NL + NL + ((r&&r.error)||'')); }
+}
+
+/** 職員の覚え書きを保存する */
+function saveMemo(appId){
+  var v = ($('memo')||{}).value || '';
+  try{
+    API.adapter().update('T_APPLICATION', appId, {
+      staff_memo: v,
+      updated_at: new Date().toISOString().slice(0,19).replace('T',' ')
+    });
+    var el = $('memo-msg');
+    if(el){
+      el.textContent = '保存しました';
+      setTimeout(function(){ if(el) el.textContent=''; }, 2500);
+    }
+  }catch(e){
+    alert('保存できませんでした' + NL + NL + (e.message||''));
+  }
+}
+
 function openEmergency(userId){
   var r = API.openEmergencyContact(userId, state.staff, '職員画面から開いた');
   if(!r || !r.ok){
@@ -707,7 +796,15 @@ function dlParticipants(appId){
   Exporter.participantsExcel(a, p);
 }
 
+/**
+ * 試作の説明を画面に出すかどうか
+ * ★本番では false にする。利用される方には意味がなく、不安にさせる。
+ *   消し忘れやすいので、1か所で切り替えられるようにしてある。
+ */
+var SHOW_DEV_NOTES = true;
+
 function devNote(text){
+  if(!SHOW_DEV_NOTES) return '';
   return '<div class="devnote"><b>この画面が呼んでいるもの</b>　'+esc(text)+'<br>'+
     '画面側のコードは、データがスプレッドシートにあるかMySQLにあるかを知らない。'+
     '保存先を変えても、この画面は書き換えなくてよい。</div>';

@@ -25,6 +25,16 @@
   body{
     margin:0; font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
     color:var(--fg); background:var(--bg); font-size:14px; line-height:1.6;
+
+    /* ★Apps Script は、この画面を高さの決まった枠（iframe）の中に置く。
+         枠は中身の長さに合わせて伸びないため、
+         小さい画面では下半分に手が届かなくなる。
+         （2026-08-20  ウィンドウ 638×670 で「次へ」が押せない状態を確認）
+
+         枠が伸びないなら、こちらの中でスクロールできるようにする。 */
+    height:100vh;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
   }
   header{
     background:var(--navy); color:#fff; padding:10px 18px;
@@ -180,6 +190,10 @@
   <div class="panel" id="p-detail"></div>
 </main>
 
+<script>
+/* 改行。文字列の中に直接書くと、生成の過程で壊れることがある */
+if (typeof NL === "undefined") var NL = String.fromCharCode(10);
+</script>
 <script>
 /* ===== schema.js ===== */
 /**
@@ -385,7 +399,13 @@ var SCHEMA = {
       { key: 'legacy_no',   label: '旧システム番号', type: 'text',
         note: '移行用。北海道演習林などで使われている番号' },
       { key: 'created_at',  label: '作成日時',      type: 'datetime' },
-      { key: 'updated_at',  label: '更新日時',      type: 'datetime' }
+      { key: 'updated_at',  label: '更新日時',      type: 'datetime' },
+
+      // ★新しい項目は、必ず末尾に足すこと。
+      //   途中に入れると、すでに入っているデータが1列ずれる。
+      { key: 'staff_memo',  label: '職員メモ',      type: 'text',
+        note: '★申込者には見せない。電話で伺ったことなどを書き留める場所。'
+            + 'この欄がないと、職員は別のノートや口頭で引き継ぐことになる' }
     ]
   },
 
@@ -490,6 +510,82 @@ var SCHEMA = {
       { key: 'target',   label: '対象',   type: 'text' },
       { key: 'detail',   label: '内容',   type: 'text' },
       { key: 'ip',       label: '接続元', type: 'text' }
+    ]
+  },
+
+  /**
+   * T9  ログイン用の合言葉
+   *
+   * ★合言葉そのものは、ここにしか置かない。画面には渡さない。
+   *   画面に渡して画面側で照合すると、
+   *   開発者ツールで合言葉が読めてしまい、意味がなくなる。
+   *   （2026-08-20 その作りになっていたので改めた）
+   *
+   *   使い終わった行は used に日時を入れる。
+   *   一度使った合言葉は、期限内でも二度は通さない。
+   */
+  T_LOGIN_CODE: {
+    sheet: 'T9_ログイン合言葉',
+    key: null,
+    columns: [
+      { key: 'email',   label: 'メールアドレス', type: 'text' },
+      { key: 'kind',    label: '種別',       type: 'select', options: ['staff', 'user'] },
+      { key: 'code',    label: '合言葉',     type: 'text' },
+      { key: 'until',   label: '有効期限',   type: 'datetime' },
+      { key: 'used',    label: '使用日時',   type: 'datetime' },
+      { key: 'tries',   label: '試行回数',   type: 'number' },
+      { key: 'issued',  label: '発行日時',   type: 'datetime' }
+    ]
+  },
+
+  /**
+   * TB  画面のどこを押したか
+   *
+   * ■ 何のために取るか
+   *   申込の途中で、どこで手が止まっているかを知るため。
+   *   「使いにくい」という声は上がりにくいが、
+   *   途中でやめた場所は数に出る。
+   *
+   * ■ 取らないもの
+   *   ★入力された中身は取らない。押した場所と時刻だけを残す。
+   *   ★誰かは、ログインしている場合を除いて分からないままにする。
+   *     visit は「同じ人が続けて操作したひとまとまり」を表すだけの、
+   *     その場かぎりの番号。氏名にもメールアドレスにも結びつかない。
+   */
+  T_CLICK: {
+    sheet: 'TB_画面の操作',
+    key: null,
+    columns: [
+      { key: 'at',      label: '日時',   type: 'datetime' },
+      { key: 'visit',   label: '来訪',   type: 'text',
+        note: '★その場かぎりの番号。個人には結びつかない' },
+      { key: 'page',    label: '画面',   type: 'text' },
+      { key: 'what',    label: '操作',   type: 'text' },
+      { key: 'detail',  label: '対象',   type: 'text' },
+      { key: 'who_id',  label: '本人',   type: 'text',
+        note: 'ログインしている場合のみ入る' }
+    ]
+  },
+
+  /**
+   * TA  ログインしている状態
+   *
+   * 画面は token だけを手元に持ち、呼び出しのたびに添える。
+   * サーバーはこの表と照合して、誰かを決める。
+   *
+   * ★token は推測できない長さにする（Utilities.getUuid）。
+   *   有効期限を過ぎたものは通さない。
+   */
+  T_SESSION: {
+    sheet: 'TA_ログイン状態',
+    key: 'token',
+    columns: [
+      { key: 'token',    label: '合言葉',   type: 'text' },
+      { key: 'kind',     label: '種別',     type: 'select', options: ['staff', 'user'] },
+      { key: 'who_id',   label: '本人',     type: 'text' },
+      { key: 'email',    label: 'メールアドレス', type: 'text' },
+      { key: 'until',    label: '有効期限', type: 'datetime' },
+      { key: 'last_at',  label: '最終利用', type: 'datetime' }
     ]
   }
 };
@@ -805,8 +901,22 @@ var MemoryAdapter = (function () {
 
 var API = (function () {
 
-  // どのアダプタを使うか。ここ1行だけで保存先が切り替わる。
-  var db = MemoryAdapter;
+  /**
+   * どのアダプタを使うか
+   *
+   * ★API層は、特定のアダプタに依存してはいけない。
+   *   ここでは「その環境にあるもの」を既定として選ぶだけにする。
+   *
+   *     ブラウザ        MemoryAdapter（手元で動かすとき）
+   *     Apps Script     SheetsAdapter（スプレッドシートに保存するとき）
+   *
+   *   どちらもなければ null のままにし、useAdapter( ) で必ず渡してもらう。
+   *   （以前ここを MemoryAdapter と決め打ちしていたため、
+   *     Apps Script 上で「MemoryAdapter is not defined」になった）
+   */
+  var db = (typeof MemoryAdapter !== 'undefined') ? MemoryAdapter
+         : (typeof SheetsAdapter !== 'undefined') ? SheetsAdapter
+         : null;
 
   // ------------------------------------------------ 内部の道具
 
@@ -2074,6 +2184,19 @@ function loadSeed(adapter) {
 var Auth = (function () {
 
   var me = null;          // いま入っている人
+
+  /**
+   * データの取り出し口
+   * ★API層が使っているものと必ず同じものを使う。
+   *   ここで環境ごとに分岐させると、片方だけ別の場所を見ることになる。
+   */
+  function adapterOf() {
+    if (typeof API !== 'undefined' && API.adapter) return API.adapter();
+    if (typeof SheetsAdapter !== 'undefined') return SheetsAdapter;
+    if (typeof MemoryAdapter !== 'undefined') return MemoryAdapter;
+    throw new Error('データの保存先が設定されていません');
+  }
+
   var CODE_MINUTES = 15;  // ワンタイムコードの有効時間
 
   /** 6桁のコードを作る */
@@ -2091,7 +2214,7 @@ var Auth = (function () {
    *   ここでは発行と記録だけを担当する。
    */
   function requestCode(email, kind) {
-    var db = API.adapter ? API.adapter() : MemoryAdapter;
+    var db = adapterOf();
 
     var target = null;
     if (kind === 'staff') {
@@ -2148,7 +2271,7 @@ var Auth = (function () {
 
   /** 入った状態にする */
   function signIn(kind, id) {
-    var db = API.adapter ? API.adapter() : MemoryAdapter;
+    var db = adapterOf();
 
     if (kind === 'staff') {
       var s = db.findByKey('M_STAFF', id);
@@ -2168,7 +2291,27 @@ var Auth = (function () {
     return { ok: true, me: me };
   }
 
-  function signOut() { me = null; }
+  /**
+   * サーバーが決めた「誰か」を、画面側にも持たせる
+   *
+   * ★判断そのものはサーバーが行う。ここはその結果を控えるだけ。
+   *   ここに入っている値を書き換えても、
+   *   サーバーが見える範囲を広げることはない。
+   */
+  function adopt(who) { me = who || null; return me; }
+
+  function signOut() {
+    me = null;
+    // サーバー側の印も消す。消さないと、印を持ったままになる
+    try {
+      if (typeof RemoteAdapter !== 'undefined' && RemoteAdapter.call &&
+          RemoteAdapter.token) {
+        RemoteAdapter.call('signOut', []);
+        RemoteAdapter.setToken(null);
+      }
+    } catch (e) {}
+  }
+
   function current() { return me; }
 
   /**
@@ -2176,7 +2319,7 @@ var Auth = (function () {
    * ★空の配列なら「どれも見られない」。全部という意味ではない。
    */
   function visibleForests() {
-    var db = API.adapter ? API.adapter() : MemoryAdapter;
+    var db = adapterOf();
     var all = db.readAll('M_FOREST').filter(function (f) { return f.active !== false; });
     if (!me) return [];
 
@@ -2208,7 +2351,7 @@ var Auth = (function () {
     if (!can('設定')) {
       return { ok: false, error: '職員を招待する権限がありません' };
     }
-    var db = API.adapter ? API.adapter() : MemoryAdapter;
+    var db = adapterOf();
 
     var dup = db.readAll('M_STAFF').some(function (s) {
       return s.login_id === email || s.email === email;
@@ -2230,7 +2373,7 @@ var Auth = (function () {
   /** 職員を無効にする。消さずに残すのは、記録との対応を保つため */
   function deactivateStaff(staffId) {
     if (!can('設定')) return { ok: false, error: '権限がありません' };
-    var db = API.adapter ? API.adapter() : MemoryAdapter;
+    var db = adapterOf();
     db.update('M_STAFF', staffId, { active: false });
     db.insert('T_AUDIT', {
       at: now(), staff_id: me.id, action: '職員を無効化',
@@ -2240,6 +2383,7 @@ var Auth = (function () {
   }
 
   return {
+    adopt: adopt,
     requestCode: requestCode,
     verify: verify,
     signIn: signIn,
@@ -3089,7 +3233,8 @@ var FORMS_SEED = [
 
 var LoginView = (function () {
 
-  var issued = null;    // 発行したコードの控え
+  var issued = null;    // 番号を送った先の控え（★番号そのものは持たない）
+  var busy = false;     // 送信中。二重に押されないようにする
   var kind = 'staff';
   var msg = null;
   var onDone = null;
@@ -3170,7 +3315,7 @@ var LoginView = (function () {
       d.innerHTML =
       '<div class="box">' +
         '<h2>ログイン</h2>' +
-        '<p class="lead">ご登録のメールアドレスに、6桁の番号をお送りします。<br>' +
+        '<p class="lead">ご入力いただいたメールアドレスに、6桁の番号をお送りします。<br>' +
           'パスワードは必要ありません。</p>' +
 
         '<div class="tabs">' +
@@ -3187,7 +3332,9 @@ var LoginView = (function () {
           (kind === 'staff' ? 'example@uf.a.u-tokyo.ac.jp' : 'example@example.ac.jp') +
           '" onkeydown="if(event.key===\'Enter\')LoginView.send()">' +
 
-        '<button class="btn" onclick="LoginView.send()">番号を受け取る</button>' +
+        '<button class="btn" onclick="LoginView.send()"' +
+          (busy ? ' disabled' : '') + '>' +
+          (busy ? 'お送りしています…' : '番号を受け取る') + '</button>' +
 
         (kind === 'staff' ?
           '<div class="note">★職員としてのご登録がない場合は入れません。<br>' +
@@ -3202,13 +3349,14 @@ var LoginView = (function () {
       d.innerHTML =
       '<div class="box">' +
         '<h2>番号をご入力ください</h2>' +
-        '<p class="lead">' + esc(issued.email) + ' にお送りしました。<br>' +
-          '有効期限は ' + Auth.CODE_MINUTES + ' 分です。</p>' +
+        '<p class="lead">' + esc(issued.email) + ' 宛にお送りしました。<br>' +
+          '有効期限は ' + (issued.minutes || 15) + ' 分です。</p>' +
 
-        // ★試作のための表示。本番では消すこと
-        '<div class="demo">試作のため、ここに番号を出しています。<br>' +
-          '<b>' + issued.code + '</b><br>' +
-          '本番ではメールでお届けします。</div>' +
+        // ★サーバーがないとき（手元で画面を確かめるとき）だけ、ここに番号が出る。
+        //   サーバーにつないだ状態では demo は空なので、何も出ない。
+        (issued.demo ?
+          '<div class="demo">サーバーにつないでいないため、ここに番号を出しています。<br>' +
+            '<b>' + issued.demo + '</b></div>' : '') +
 
         (msg ? '<div class="err">' + esc(msg) + '</div>' : '') +
 
@@ -3216,8 +3364,12 @@ var LoginView = (function () {
         '<input type="text" id="login-code" class="code" maxlength="6" ' +
           'inputmode="numeric" onkeydown="if(event.key===\'Enter\')LoginView.enter()">' +
 
-        '<button class="btn" onclick="LoginView.enter()">入る</button>' +
+        '<button class="btn" onclick="LoginView.enter()"' +
+          (busy ? ' disabled' : '') + '>' +
+          (busy ? '確かめています…' : '入る') + '</button>' +
         '<button class="btn sub" onclick="LoginView.back()">戻る</button>' +
+        '<div class="note">届かない場合は、迷惑メールに入っていないかご確認ください。<br>' +
+        '　それでも届かない場合は、戻ってもう一度お求めください。</div>' +
       '</div>';
 
       var c = document.getElementById('login-code');
@@ -3227,26 +3379,90 @@ var LoginView = (function () {
 
   function setKind(k) { kind = k; msg = null; render(); }
 
+  /**
+   * ログインの手続きをサーバーに頼む
+   *
+   * ★合言葉を作るのも照合するのも、サーバーだけが行う。
+   *   画面側で照合すると、開発者ツールで合言葉が読めてしまい、
+   *   ログインの意味がなくなる。（2026-08-20 その作りを改めた）
+   *
+   *   手元で動かすとき（サーバーがないとき）は、
+   *   画面の見え方を確かめられるように auth.js を使う。
+   */
+  function ask(fn, args) {
+    if (typeof RemoteAdapter !== 'undefined' && RemoteAdapter.call &&
+        typeof google !== 'undefined' && google.script && google.script.run) {
+      return RemoteAdapter.call(fn, args);
+    }
+    // ---- 手元で動かすとき
+    if (fn === 'requestLoginCode') {
+      var r = Auth.requestCode(args[0], args[1]);
+      if (r.ok) { localDemo = r; }
+      return Promise.resolve(r.ok ? { ok: true, minutes: Auth.CODE_MINUTES,
+                                      email: args[0], demo: r.code } : r);
+    }
+    if (fn === 'verifyLoginCode') {
+      return Promise.resolve(Auth.verify(args[0], args[1], localDemo));
+    }
+    return Promise.reject(new Error('サーバーにつながっていません'));
+  }
+
+  var localDemo = null;   // 手元で動かすときだけ使う
+
   function send() {
+    if (busy) return;
     var email = (document.getElementById('login-email') || {}).value || '';
     if (!email || email.indexOf('@') < 0) {
       msg = 'メールアドレスをご確認ください';
       render();
       return;
     }
-    var r = Auth.requestCode(email.trim(), kind);
-    if (!r.ok) { msg = r.error; render(); return; }
-    issued = { code: r.code, until: r.until, kind: r.kind, id: r.id, email: email.trim() };
-    msg = null;
-    render();
+    busy = true; msg = null; render();
+
+    ask('requestLoginCode', [email.trim(), kind]).then(function (r) {
+      busy = false;
+      if (!r || !r.ok) { msg = (r && r.error) || '番号をお送りできませんでした'; render(); return; }
+      issued = { email: email.trim(), minutes: r.minutes || 15, demo: r.demo || null };
+      render();
+    }).catch(function (e) {
+      busy = false;
+      msg = e && e.message ? e.message : 'サーバーにつながりませんでした';
+      render();
+    });
   }
 
   function enter() {
+    if (busy) return;
     var code = (document.getElementById('login-code') || {}).value || '';
-    var r = Auth.verify(issued.email, code.trim(), issued);
-    if (!r.ok) { msg = r.error; render(); return; }
-    close();
-    if (onDone) onDone(r.me);
+    if (!code.trim()) { msg = '番号をご入力ください'; render(); return; }
+
+    busy = true; msg = null; render();
+
+    ask('verifyLoginCode', [issued.email, code.trim()]).then(function (r) {
+      busy = false;
+      if (!r || !r.ok) { msg = (r && r.error) || '入れませんでした'; render(); return; }
+
+      // ★印を持ち、データを取り直す。
+      //   取り直さないと、ログインする前の（狭い）範囲のまま画面が描かれる。
+      if (typeof RemoteAdapter !== 'undefined' && RemoteAdapter.setToken && r.token) {
+        RemoteAdapter.setToken(r.token);
+        RemoteAdapter.reload().then(function () {
+          close();
+          if (onDone) onDone(r.me);
+        }).catch(function (e) {
+          msg = 'ログインはできましたが、データを読み込めませんでした。' +
+                (e && e.message ? e.message : '');
+          render();
+        });
+        return;
+      }
+      close();
+      if (onDone) onDone(r.me);
+    }).catch(function (e) {
+      busy = false;
+      msg = e && e.message ? e.message : 'サーバーにつながりませんでした';
+      render();
+    });
   }
 
   function back() { issued = null; msg = null; render(); }
@@ -3821,7 +4037,11 @@ function renderDetail(){
   if(!a){ $('p-detail').innerHTML = '<div class="empty">見つかりません</div>'; return; }
 
   var m = API.getMasters(state.forest);
-  var parts = API.getParticipants(a.app_id, '施設担当者');
+  // ★役割を決め打ちにしない。いま入っている人の役割で見る。
+  //   （サーバー側でも個人情報は落としているが、
+  //     画面側でも同じ判断にしておかないと、後から食い違う）
+  var meNow = Auth.current();
+  var parts = API.getParticipants(a.app_id, meNow ? meNow.role : '');
   var missing = API.getMissingForms(a.app_id);
 
   var st = null;
@@ -3856,8 +4076,44 @@ function renderDetail(){
               'onclick="changeStatus(\''+a.app_id+'\',\''+c+'\')">'+esc(c)+'</button>';
           }).join('')
           : '<div style="font-size:12px;color:var(--gray)">最終の状態です</div>')+
+        // ★決められた順路の外にも動かせるようにする。
+        //   実務では「一度戻す」「間違えて進めた」が必ず起きる。
+        //   順路しか通れないと、そのたびに管理者を呼ぶことになる。
+        '<details style="margin-top:10px">'+
+          '<summary style="font-size:12px;color:var(--gray);cursor:pointer">'+
+            'ほかの状態にする</summary>'+
+          '<div style="margin-top:7px">'+
+            '<select id="st-any" style="padding:5px;font-size:12.5px">'+
+              m.statuses.map(function(x){
+                return '<option value="'+x.code+'"'+
+                  (x.code===a.status?' selected':'')+'>'+esc(x.label)+'</option>';
+              }).join('')+
+            '</select> '+
+            '<input type="text" id="st-why" placeholder="理由（記録に残ります）" '+
+              'style="padding:5px;font-size:12.5px;width:210px">'+
+            '<button class="btn" style="margin-left:5px" '+
+              'onclick="forceStatus(\''+a.app_id+'\')">変える</button>'+
+            '<div class="note">誰がいつ何のために変えたかが記録に残る。</div>'+
+          '</div>'+
+        '</details>'+
         '<div class="note">★状態の定義は演習林ごとに設定できる。'+
           'ここは仮置きで、9月のヒアリングで確定する。</div>'+
+      '</div></div>'+
+
+      // 職員だけが見る覚え書き。★申込者には見えない
+      '<div class="card"><h3>職員メモ</h3><div class="body">'+
+        '<textarea id="memo" rows="4" style="width:100%;padding:8px;'+
+          'font-size:13px;font-family:inherit;border:1px solid var(--line);'+
+          'border-radius:4px;line-height:1.7" '+
+          'placeholder="電話で伺ったことなど。申込者には表示されません">'+
+          esc(a.staff_memo||'')+'</textarea>'+
+        '<div style="margin-top:6px">'+
+          '<button class="btn" onclick="saveMemo(\''+a.app_id+'\')">保存</button>'+
+          '<span id="memo-msg" style="font-size:12px;color:var(--gray);'+
+            'margin-left:9px"></span>'+
+        '</div>'+
+        '<div class="note">★この欄がないと、電話で聞いたことが'+
+          '職員個人の手元にしか残らない。</div>'+
       '</div></div>'+
 
       '<div class="card"><h3>参加者　'+parts.length+'名'+
@@ -3937,6 +4193,41 @@ function changeStatus(appId, to){
   if(r.ok) renderDetail();
 }
 
+/**
+ * 決められた順路の外へ動かす
+ * ★理由を必ず残す。残さないと、後から見て何があったのか分からない。
+ */
+function forceStatus(appId){
+  var to  = ($('st-any')||{}).value || '';
+  var why = (($('st-why')||{}).value || '').trim();
+  if(!to) return;
+  if(!why){
+    alert('順路の外へ動かすときは、理由をご入力ください。');
+    return;
+  }
+  var r = API.updateStatus(appId, to, state.staff, '［順路外］'+why);
+  if(r && r.ok){ renderDetail(); }
+  else { alert('変えられませんでした' + NL + NL + ((r&&r.error)||'')); }
+}
+
+/** 職員の覚え書きを保存する */
+function saveMemo(appId){
+  var v = ($('memo')||{}).value || '';
+  try{
+    API.adapter().update('T_APPLICATION', appId, {
+      staff_memo: v,
+      updated_at: new Date().toISOString().slice(0,19).replace('T',' ')
+    });
+    var el = $('memo-msg');
+    if(el){
+      el.textContent = '保存しました';
+      setTimeout(function(){ if(el) el.textContent=''; }, 2500);
+    }
+  }catch(e){
+    alert('保存できませんでした' + NL + NL + (e.message||''));
+  }
+}
+
 function openEmergency(userId){
   var r = API.openEmergencyContact(userId, state.staff, '職員画面から開いた');
   if(!r || !r.ok){
@@ -3993,7 +4284,15 @@ function dlParticipants(appId){
   Exporter.participantsExcel(a, p);
 }
 
+/**
+ * 試作の説明を画面に出すかどうか
+ * ★本番では false にする。利用される方には意味がなく、不安にさせる。
+ *   消し忘れやすいので、1か所で切り替えられるようにしてある。
+ */
+var SHOW_DEV_NOTES = true;
+
 function devNote(text){
+  if(!SHOW_DEV_NOTES) return '';
   return '<div class="devnote"><b>この画面が呼んでいるもの</b>　'+esc(text)+'<br>'+
     '画面側のコードは、データがスプレッドシートにあるかMySQLにあるかを知らない。'+
     '保存先を変えても、この画面は書き換えなくてよい。</div>';

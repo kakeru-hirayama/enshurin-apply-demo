@@ -15,8 +15,22 @@
 
 var API = (function () {
 
-  // どのアダプタを使うか。ここ1行だけで保存先が切り替わる。
-  var db = MemoryAdapter;
+  /**
+   * どのアダプタを使うか
+   *
+   * ★API層は、特定のアダプタに依存してはいけない。
+   *   ここでは「その環境にあるもの」を既定として選ぶだけにする。
+   *
+   *     ブラウザ        MemoryAdapter（手元で動かすとき）
+   *     Apps Script     SheetsAdapter（スプレッドシートに保存するとき）
+   *
+   *   どちらもなければ null のままにし、useAdapter( ) で必ず渡してもらう。
+   *   （以前ここを MemoryAdapter と決め打ちしていたため、
+   *     Apps Script 上で「MemoryAdapter is not defined」になった）
+   */
+  var db = (typeof MemoryAdapter !== 'undefined') ? MemoryAdapter
+         : (typeof SheetsAdapter !== 'undefined') ? SheetsAdapter
+         : null;
 
   // ------------------------------------------------ 内部の道具
 

@@ -201,7 +201,13 @@ var SCHEMA = {
       { key: 'legacy_no',   label: '旧システム番号', type: 'text',
         note: '移行用。北海道演習林などで使われている番号' },
       { key: 'created_at',  label: '作成日時',      type: 'datetime' },
-      { key: 'updated_at',  label: '更新日時',      type: 'datetime' }
+      { key: 'updated_at',  label: '更新日時',      type: 'datetime' },
+
+      // ★新しい項目は、必ず末尾に足すこと。
+      //   途中に入れると、すでに入っているデータが1列ずれる。
+      { key: 'staff_memo',  label: '職員メモ',      type: 'text',
+        note: '★申込者には見せない。電話で伺ったことなどを書き留める場所。'
+            + 'この欄がないと、職員は別のノートや口頭で引き継ぐことになる' }
     ]
   },
 
@@ -306,6 +312,82 @@ var SCHEMA = {
       { key: 'target',   label: '対象',   type: 'text' },
       { key: 'detail',   label: '内容',   type: 'text' },
       { key: 'ip',       label: '接続元', type: 'text' }
+    ]
+  },
+
+  /**
+   * T9  ログイン用の合言葉
+   *
+   * ★合言葉そのものは、ここにしか置かない。画面には渡さない。
+   *   画面に渡して画面側で照合すると、
+   *   開発者ツールで合言葉が読めてしまい、意味がなくなる。
+   *   （2026-08-20 その作りになっていたので改めた）
+   *
+   *   使い終わった行は used に日時を入れる。
+   *   一度使った合言葉は、期限内でも二度は通さない。
+   */
+  T_LOGIN_CODE: {
+    sheet: 'T9_ログイン合言葉',
+    key: null,
+    columns: [
+      { key: 'email',   label: 'メールアドレス', type: 'text' },
+      { key: 'kind',    label: '種別',       type: 'select', options: ['staff', 'user'] },
+      { key: 'code',    label: '合言葉',     type: 'text' },
+      { key: 'until',   label: '有効期限',   type: 'datetime' },
+      { key: 'used',    label: '使用日時',   type: 'datetime' },
+      { key: 'tries',   label: '試行回数',   type: 'number' },
+      { key: 'issued',  label: '発行日時',   type: 'datetime' }
+    ]
+  },
+
+  /**
+   * TB  画面のどこを押したか
+   *
+   * ■ 何のために取るか
+   *   申込の途中で、どこで手が止まっているかを知るため。
+   *   「使いにくい」という声は上がりにくいが、
+   *   途中でやめた場所は数に出る。
+   *
+   * ■ 取らないもの
+   *   ★入力された中身は取らない。押した場所と時刻だけを残す。
+   *   ★誰かは、ログインしている場合を除いて分からないままにする。
+   *     visit は「同じ人が続けて操作したひとまとまり」を表すだけの、
+   *     その場かぎりの番号。氏名にもメールアドレスにも結びつかない。
+   */
+  T_CLICK: {
+    sheet: 'TB_画面の操作',
+    key: null,
+    columns: [
+      { key: 'at',      label: '日時',   type: 'datetime' },
+      { key: 'visit',   label: '来訪',   type: 'text',
+        note: '★その場かぎりの番号。個人には結びつかない' },
+      { key: 'page',    label: '画面',   type: 'text' },
+      { key: 'what',    label: '操作',   type: 'text' },
+      { key: 'detail',  label: '対象',   type: 'text' },
+      { key: 'who_id',  label: '本人',   type: 'text',
+        note: 'ログインしている場合のみ入る' }
+    ]
+  },
+
+  /**
+   * TA  ログインしている状態
+   *
+   * 画面は token だけを手元に持ち、呼び出しのたびに添える。
+   * サーバーはこの表と照合して、誰かを決める。
+   *
+   * ★token は推測できない長さにする（Utilities.getUuid）。
+   *   有効期限を過ぎたものは通さない。
+   */
+  T_SESSION: {
+    sheet: 'TA_ログイン状態',
+    key: 'token',
+    columns: [
+      { key: 'token',    label: '合言葉',   type: 'text' },
+      { key: 'kind',     label: '種別',     type: 'select', options: ['staff', 'user'] },
+      { key: 'who_id',   label: '本人',     type: 'text' },
+      { key: 'email',    label: 'メールアドレス', type: 'text' },
+      { key: 'until',    label: '有効期限', type: 'datetime' },
+      { key: 'last_at',  label: '最終利用', type: 'datetime' }
     ]
   }
 };

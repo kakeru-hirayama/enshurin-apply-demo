@@ -19,6 +19,9 @@
  * ------------------------------------------------------------------
  */
 
+/** 改行。文字列の中に直接書くと、生成の過程で壊れることがある */
+var NL = String.fromCharCode(10);
+
 var Mailer = (function () {
 
   /** 送信元の表示名 */
@@ -228,15 +231,59 @@ var Mailer = (function () {
 
 
 /**
- * 動作の確認　まず自分あてに1通送る
- * ★DRY_RUN を false にしてから実行すること
+ * 動作の確認　自分あてに1通だけ送る
+ *
+ * ★この関数の中だけ、実際に送る設定に切り替える。
+ *   全体を送信可にすると、まだ架空のアドレス（example.ac.jp など）が
+ *   入っている状態で招待メールが飛びかねない。
  */
 function testMail() {
   var me = Session.getActiveUser().getEmail();
-  Logger.log('送信可能数　残り ' + MailApp.getRemainingDailyQuota() + ' 通');
-  Mailer.send(me, '［テスト］演習林 利用申込システム',
-    'このメールは送信の確認のために送られました。\n\n' +
-    '送信元　' + me + '\n' +
-    '日時　　' + new Date().toLocaleString('ja-JP') + '\n');
+  var quota = MailApp.getRemainingDailyQuota();
+  Logger.log('送信可能数　残り ' + quota + ' 通');
+
+  if (quota < 1) {
+    throw new Error('本日の送信可能数が残っていません');
+  }
+
+  Mailer.setDryRun(false);
+  try {
+    Mailer.send(me, '［テスト］演習林 利用申込システム',
+      'このメールは送信の確認のために送られました。' + NL + NL +
+      '送信元　' + me + NL +
+      '日時　　' + new Date().toLocaleString('ja-JP') + NL + NL +
+      'このメールが届いていれば、招待のご案内や受付のご連絡も' + NL +
+      '同じ仕組みで送れます。' + NL);
+  } finally {
+    Mailer.setDryRun(true);   // 必ず元に戻す
+  }
+
+  Logger.log('送信しました　' + me);
+  Logger.log('残り ' + MailApp.getRemainingDailyQuota() + ' 通');
   return me;
+}
+
+
+/**
+ * 実際にメールを送る状態にする
+ *
+ * ★これを呼ぶまで、招待や受付のご連絡は送られない。
+ *   本番のデータが入り、宛先が実在することを確かめてから呼ぶこと。
+ */
+function enableMailForReal() {
+  var users = SheetsAdapter.readAll('M_USER');
+  var fake = users.filter(function (u) {
+    return /example\.(com|ac\.jp|org)$/.test(u.email || '');
+  });
+
+  if (fake.length) {
+    throw new Error(
+      '架空のメールアドレスが ' + fake.length + ' 件あります。' +
+      'これらを消してから実行してください。' +
+      '（例　' + fake[0].email + '）');
+  }
+
+  Mailer.setDryRun(false);
+  Logger.log('実際に送る状態にしました。利用者 ' + users.length + ' 件');
+  return true;
 }

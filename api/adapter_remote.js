@@ -60,12 +60,13 @@ var RemoteAdapter = (function () {
         google.script.run
           .withSuccessHandler(resolve)
           .withFailureHandler(reject)
-          .rpc(fn, JSON.stringify(args || []));
+          .rpc(fn, JSON.stringify(args || []), RemoteAdapter.token || '');
       } else if (typeof RemoteAdapter.endpoint === 'string') {
         fetch(RemoteAdapter.endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fn: fn, args: args || [] })
+          body: JSON.stringify({ fn: fn, args: args || [],
+                                 token: RemoteAdapter.token || '' })
         }).then(function (r) { return r.json(); })
           .then(function (j) { j.ok ? resolve(j.result) : reject(new Error(j.error)); })
           .catch(reject);
@@ -103,12 +104,7 @@ var RemoteAdapter = (function () {
      * サーバーから全データを受け取る
      * ★画面はこれを待ってから描き始める
      */
-    load: function () {
-      return callServer('loadAll', []).then(function (data) {
-        db = (typeof data === 'string') ? JSON.parse(data) : data;
-        return db;
-      });
-    },
+    load: function () { return RemoteAdapter.reload(); },
 
     readAll: function (table) {
       return ensure(table).map(copy);
@@ -181,6 +177,60 @@ var RemoteAdapter = (function () {
       var n = max + 1;
       return prefix ? (prefix + String('0000' + n).slice(-4)) : String(n);
     },
+
+    /* ------------------------------------------------ ログインの印
+
+       サーバーが発行した印を持ち、呼び出しのたびに添える。
+       ★ここには「誰か」の判断を持たせない。
+         誰かを決めるのはサーバーだけ。
+         画面側の持ち物で判断すると、書き換えられてしまう。
+    */
+    token: null,
+
+    /** 印を持つ。次に開いたときも続くよう、ブラウザにも控える */
+    setToken: function (t) {
+      RemoteAdapter.token = t || null;
+      try {
+        if (t) localStorage.setItem('enshurin_token', t);
+        else localStorage.removeItem('enshurin_token');
+      } catch (e) {
+        // ブラウザの設定で使えないことがある。
+        // その場合は、閉じるまでの間だけ有効になる。
+      }
+    },
+
+    /** 前に開いたときの印を思い出す */
+    restoreToken: function () {
+      try {
+        var t = localStorage.getItem('enshurin_token');
+        if (t) RemoteAdapter.token = t;
+        return t;
+      } catch (e) { return null; }
+    },
+
+    /**
+     * サーバーからデータを受け取る
+     *
+     * ★印が変わると見える範囲が変わるため、
+     *   ログインし直したときは必ずここを通る。
+     *
+     *   受け取ったものの中に __me が入っている。
+     *   これがサーバーの決めた「誰か」で、画面側の判断はこれに従う。
+     */
+    reload: function () {
+      return callServer('loadAll', []).then(function (data) {
+        db = (typeof data === 'string') ? JSON.parse(data) : data;
+
+        var who = db.__me || null;
+        delete db.__me;
+        if (typeof Auth !== 'undefined' && Auth.adopt) Auth.adopt(who);
+
+        return db;
+      });
+    },
+
+    /** サーバーの関数を直に呼ぶ。ログインなど、表の読み書き以外に使う */
+    call: function (fn, args) { return callServer(fn, args); },
 
     reset: function () { db = {}; },
     dump: function () { return db; }

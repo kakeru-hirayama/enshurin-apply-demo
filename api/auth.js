@@ -25,6 +25,19 @@
 var Auth = (function () {
 
   var me = null;          // いま入っている人
+
+  /**
+   * データの取り出し口
+   * ★API層が使っているものと必ず同じものを使う。
+   *   ここで環境ごとに分岐させると、片方だけ別の場所を見ることになる。
+   */
+  function adapterOf() {
+    if (typeof API !== 'undefined' && API.adapter) return API.adapter();
+    if (typeof SheetsAdapter !== 'undefined') return SheetsAdapter;
+    if (typeof MemoryAdapter !== 'undefined') return MemoryAdapter;
+    throw new Error('データの保存先が設定されていません');
+  }
+
   var CODE_MINUTES = 15;  // ワンタイムコードの有効時間
 
   /** 6桁のコードを作る */
@@ -42,7 +55,7 @@ var Auth = (function () {
    *   ここでは発行と記録だけを担当する。
    */
   function requestCode(email, kind) {
-    var db = API.adapter ? API.adapter() : MemoryAdapter;
+    var db = adapterOf();
 
     var target = null;
     if (kind === 'staff') {
@@ -99,7 +112,7 @@ var Auth = (function () {
 
   /** 入った状態にする */
   function signIn(kind, id) {
-    var db = API.adapter ? API.adapter() : MemoryAdapter;
+    var db = adapterOf();
 
     if (kind === 'staff') {
       var s = db.findByKey('M_STAFF', id);
@@ -119,7 +132,27 @@ var Auth = (function () {
     return { ok: true, me: me };
   }
 
-  function signOut() { me = null; }
+  /**
+   * サーバーが決めた「誰か」を、画面側にも持たせる
+   *
+   * ★判断そのものはサーバーが行う。ここはその結果を控えるだけ。
+   *   ここに入っている値を書き換えても、
+   *   サーバーが見える範囲を広げることはない。
+   */
+  function adopt(who) { me = who || null; return me; }
+
+  function signOut() {
+    me = null;
+    // サーバー側の印も消す。消さないと、印を持ったままになる
+    try {
+      if (typeof RemoteAdapter !== 'undefined' && RemoteAdapter.call &&
+          RemoteAdapter.token) {
+        RemoteAdapter.call('signOut', []);
+        RemoteAdapter.setToken(null);
+      }
+    } catch (e) {}
+  }
+
   function current() { return me; }
 
   /**
@@ -127,7 +160,7 @@ var Auth = (function () {
    * ★空の配列なら「どれも見られない」。全部という意味ではない。
    */
   function visibleForests() {
-    var db = API.adapter ? API.adapter() : MemoryAdapter;
+    var db = adapterOf();
     var all = db.readAll('M_FOREST').filter(function (f) { return f.active !== false; });
     if (!me) return [];
 
@@ -159,7 +192,7 @@ var Auth = (function () {
     if (!can('設定')) {
       return { ok: false, error: '職員を招待する権限がありません' };
     }
-    var db = API.adapter ? API.adapter() : MemoryAdapter;
+    var db = adapterOf();
 
     var dup = db.readAll('M_STAFF').some(function (s) {
       return s.login_id === email || s.email === email;
@@ -181,7 +214,7 @@ var Auth = (function () {
   /** 職員を無効にする。消さずに残すのは、記録との対応を保つため */
   function deactivateStaff(staffId) {
     if (!can('設定')) return { ok: false, error: '権限がありません' };
-    var db = API.adapter ? API.adapter() : MemoryAdapter;
+    var db = adapterOf();
     db.update('M_STAFF', staffId, { active: false });
     db.insert('T_AUDIT', {
       at: now(), staff_id: me.id, action: '職員を無効化',
@@ -191,6 +224,7 @@ var Auth = (function () {
   }
 
   return {
+    adopt: adopt,
     requestCode: requestCode,
     verify: verify,
     signIn: signIn,

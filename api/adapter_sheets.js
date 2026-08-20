@@ -212,6 +212,42 @@ var SheetsAdapter = (function () {
       return prefix ? (prefix + String('0000' + n).slice(-4)) : String(n);
     },
 
+    /**
+     * 鍵のない表の、n 番目の行だけを書き換える
+     *
+     * ★鍵のある表には update を使うこと。これは最後の手段。
+     *   ログイン用の合言葉のように、
+     *   同じ相手に何度も行を作る表には鍵が置けないため用意した。
+     *
+     * @param {string} table  表の名前
+     * @param {number} index  readAll で返る配列の中の位置（0から）
+     * @param {Object} patch  書き換える項目
+     */
+    updateAt: function (table, index, patch) {
+      if (index < 0) return false;
+      var sh = sheetOf(table);
+      var cols = SCHEMA[table].columns;
+      var r = index + 2;              // 1行目は見出し
+      cols.forEach(function (c, j) {
+        if (patch.hasOwnProperty(c.key)) {
+          sh.getRange(r, j + 1).setValue(patch[c.key]);
+        }
+      });
+      cache = {};
+      return true;
+    },
+
+    /**
+     * 鍵のない表の、n 番目の行を消す
+     * ★後ろから順に消すこと。前から消すと位置がずれる。
+     */
+    removeAt: function (table, index) {
+      if (index < 0) return false;
+      sheetOf(table).deleteRow(index + 2);
+      cache = {};
+      return true;
+    },
+
     /** 読み込みの結果を捨てる。書き込みの後に自動で呼ばれる */
     clearCache: function () { cache = {}; }
   };
@@ -239,6 +275,8 @@ function setupSheets() {
   var pers = SpreadsheetApp.openById(persId);
   var personal = { M_USER: true, M_STAFF: true };
   var made = [];
+  var warn = [];
+  var NLC = String.fromCharCode(10);
 
   Object.keys(SCHEMA).forEach(function (table) {
     var def = SCHEMA[table];
@@ -246,6 +284,32 @@ function setupSheets() {
     var sh = book.getSheetByName(def.sheet) || book.insertSheet(def.sheet);
 
     var header = def.columns.map(function (c) { return c.label; });
+
+    // ★すでにあるシートの見出しと比べる。
+    //   定義の途中に項目を足すと、入っているデータが1列ずれる。
+    //   見出しだけ書き換えると、ずれたことに誰も気づけない。
+    var last = sh.getLastColumn();
+    if (last > 0 && sh.getLastRow() > 1) {
+      var before = sh.getRange(1, 1, 1, last).getValues()[0];
+      var moved = [];
+      for (var i = 0; i < Math.min(before.length, header.length); i++) {
+        if (String(before[i]).trim() && String(before[i]).trim() !== header[i]) {
+          moved.push((i + 1) + '列目　' + before[i] + ' → ' + header[i]);
+        }
+      }
+      if (moved.length) {
+        warn.push(def.sheet + '　すでに ' + (sh.getLastRow() - 1) +
+                  ' 行入っている状態で、見出しが変わります' + NLC +
+                  moved.map(function (x) { return '　　' + x; }).join(NLC));
+      }
+    }
+
+    // 列が足りなければ足す
+    if (sh.getMaxColumns() < header.length) {
+      sh.insertColumnsAfter(sh.getMaxColumns(),
+                            header.length - sh.getMaxColumns());
+    }
+
     sh.getRange(1, 1, 1, header.length).setValues([header]);
 
     var h = sh.getRange(1, 1, 1, header.length);
@@ -270,7 +334,21 @@ function setupSheets() {
     if (s && b.getSheets().length > 1) b.deleteSheet(s);
   });
 
-  Logger.log('作成したシート\n' + made.join('\n'));
+  var out = '作成したシート' + NLC + made.join(NLC);
+
+  if (warn.length) {
+    // ★黙って進めない。ずれたことに気づけるのは、この瞬間だけ。
+    out += NLC + NLC +
+      '───────────────────────' + NLC +
+      '★ご確認ください　列の並びが変わりました' + NLC +
+      '───────────────────────' + NLC +
+      warn.join(NLC) + NLC + NLC +
+      'すでに入っているデータは動いていません。' + NLC +
+      '見出しだけが変わったため、中身と見出しが食い違っている可能性があります。' + NLC +
+      'シートを開いて確かめてください。';
+  }
+
+  Logger.log(out);
   return made;
 }
 
