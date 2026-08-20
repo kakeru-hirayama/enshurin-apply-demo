@@ -125,6 +125,53 @@ var SheetsAdapter = (function () {
     });
   }
 
+
+  /**
+   * 鍵が重なっていないかを確かめる
+   *
+   * ★鍵のある表に同じ鍵の行が2つできると、
+   *   どちらが本当か分からなくなる。
+   *   集計では二重に数えられ、更新では片方だけが直る。
+   *
+   *   実際、T_USAGE_DAY に同じ［申込ID・日付］の行があり、
+   *   年報と月次の延べ人数が食い違っていた。
+   *   （2026-08-20 に判明。AIC で624人の差）
+   *
+   *   入る前に止める。入ってからでは、どちらを消すか誰にも決められない。
+   */
+  function checkKeys(table, rows, existing) {
+    var k = SCHEMA[table].key;
+    if (!k) return;                      // 鍵のない表は素通り
+
+    var keyOfRow = function (r) {
+      return Array.isArray(k)
+        ? k.map(function (x) { return r[x]; }).join('/')
+        : r[k];
+    };
+
+    var have = {};
+    (existing || []).forEach(function (r) { have[keyOfRow(r)] = true; });
+
+    var dup = [];
+    var inBatch = {};
+    rows.forEach(function (r) {
+      var key = keyOfRow(r);
+      if (have[key] || inBatch[key]) {
+        if (dup.indexOf(key) < 0) dup.push(key);
+      }
+      inBatch[key] = true;
+    });
+
+    if (dup.length) {
+      var NLC = String.fromCharCode(10);
+      throw new Error(
+        SCHEMA[table].sheet + ' に、すでにある行を入れようとしました（' +
+        dup.length + '件）' + NLC +
+        dup.slice(0, 5).map(function (x) { return '　・' + x; }).join(NLC) +
+        (dup.length > 5 ? NLC + '　　ほか ' + (dup.length - 5) + ' 件' : ''));
+    }
+  }
+
   return {
     name: 'sheets',
 
@@ -150,6 +197,7 @@ var SheetsAdapter = (function () {
     },
 
     insert: function (table, row) {
+      checkKeys(table, [row], load(table));
       var sh = sheetOf(table);
       sh.appendRow(rowToArray(table, row));
       delete cache[table];
@@ -159,6 +207,8 @@ var SheetsAdapter = (function () {
     /** まとめて足す。1行ずつ appendRow するより格段に速い */
     insertMany: function (table, rows) {
       if (!rows.length) return 0;
+      // ★読み込みは1回で済ませる。1行ずつ確かめると遅い
+      checkKeys(table, rows, load(table));
       var sh = sheetOf(table);
       var start = sh.getLastRow() + 1;
       var values = rows.map(function (r) { return rowToArray(table, r); });

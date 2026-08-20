@@ -36,6 +36,53 @@ var MemoryAdapter = (function () {
     return Array.isArray(key) ? key.join('') : key;
   }
 
+
+  /**
+   * 鍵が重なっていないかを確かめる
+   *
+   * ★鍵のある表に同じ鍵の行が2つできると、
+   *   どちらが本当か分からなくなる。
+   *   集計では二重に数えられ、更新では片方だけが直る。
+   *
+   *   実際、T_USAGE_DAY に同じ［申込ID・日付］の行があり、
+   *   年報と月次の延べ人数が食い違っていた。
+   *   （2026-08-20 に判明。AIC で624人の差）
+   *
+   *   入る前に止める。入ってからでは、どちらを消すか誰にも決められない。
+   */
+  function checkKeys(table, rows, existing) {
+    var k = SCHEMA[table].key;
+    if (!k) return;                      // 鍵のない表は素通り
+
+    var keyOfRow = function (r) {
+      return Array.isArray(k)
+        ? k.map(function (x) { return r[x]; }).join('/')
+        : r[k];
+    };
+
+    var have = {};
+    (existing || []).forEach(function (r) { have[keyOfRow(r)] = true; });
+
+    var dup = [];
+    var inBatch = {};
+    rows.forEach(function (r) {
+      var key = keyOfRow(r);
+      if (have[key] || inBatch[key]) {
+        if (dup.indexOf(key) < 0) dup.push(key);
+      }
+      inBatch[key] = true;
+    });
+
+    if (dup.length) {
+      var NLC = String.fromCharCode(10);
+      throw new Error(
+        SCHEMA[table].sheet + ' に、すでにある行を入れようとしました（' +
+        dup.length + '件）' + NLC +
+        dup.slice(0, 5).map(function (x) { return '　・' + x; }).join(NLC) +
+        (dup.length > 5 ? NLC + '　　ほか ' + (dup.length - 5) + ' 件' : ''));
+    }
+  }
+
   return {
     name: 'memory',
 
@@ -62,6 +109,7 @@ var MemoryAdapter = (function () {
     },
 
     insert: function (table, row) {
+      checkKeys(table, [row], ensure(table));
       ensure(table).push(row);
       return row;
     },
@@ -69,6 +117,7 @@ var MemoryAdapter = (function () {
     /** まとめて足す。移行や初期投入で使う */
     insertMany: function (table, rows) {
       var t = ensure(table);
+      checkKeys(table, rows, t);
       rows.forEach(function (r) { t.push(r); });
       return rows.length;
     },

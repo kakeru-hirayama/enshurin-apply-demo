@@ -704,11 +704,25 @@ var API = (function () {
     var apps = byId(db.readAll('T_APPLICATION'), 'app_id');
     var out = [];
 
+    // ★同じ申込の同じ日を、二度数えない。
+    //
+    //   T_USAGE_DAY は［申込ID・日付］が鍵なので、本来は重ならない。
+    //   しかし過去のデータには重なっている行があり、
+    //   その日の人数が2回足されて、年報と月次の延べ人数が
+    //   食い違っていた。（2026-08-20 に判明。AIC で624人の差）
+    //
+    //   年報のほうが正しい。ここで重なりを落とす。
+    var seen = {};
+
     db.readAll('T_USAGE_DAY')
       .filter(function (d) { return d.date >= from && d.date <= to; })
       .forEach(function (d) {
         var a = apps[d.app_id];
         if (!a || a.forest_id !== forestId) return;
+
+        var key = d.app_id + '/' + d.date;
+        if (seen[key]) return;
+        seen[key] = true;
 
         var heads = db.readAll('T_HEADCOUNT').filter(function (h) {
           return h.app_id === d.app_id && h.date === d.date;

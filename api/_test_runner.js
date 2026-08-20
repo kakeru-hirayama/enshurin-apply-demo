@@ -6,7 +6,9 @@ const fs = require('fs');
 const vm = require('vm');
 const path = require('path');
 
-const API_DIR = '/mnt/user-data/uploads/claude-hub/projects/徳永_演習林システム/src/api';
+// ★このファイルが置かれている場所を基準にする。
+//   決め打ちのパスにすると、作った人の手元でしか動かない。
+const API_DIR = __dirname;
 
 // 読み込む順（依存の順）
 const FILES = [
@@ -88,5 +90,5 @@ console.log('マスタ投入: 演習林'+FORESTS.length+' / ステータス'+(FO
             ' / 施設3 / 様式'+((sandbox.FORMS_SEED||[]).length)+' / 職員2');
 console.log('');
 
-const t = require('./tests_enshurin_api.js');
+const t = require('./_tests_enshurin_api.js');
 t.main();
