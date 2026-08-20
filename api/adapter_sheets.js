@@ -264,12 +264,76 @@ var SheetsAdapter = (function () {
      schema.js を直してこれを実行すれば、定義とシートが必ず一致する。
    ================================================================== */
 
+/**
+ * 定義そのものに誤りがないかを確かめる
+ *
+ * ★シートを触る前に呼ぶ。
+ *   間違いを見つけたら、何もせずに止める。
+ *   half-done の状態を作らないため。
+ */
+function checkSchema() {
+  var bad = [];
+  var NLC = String.fromCharCode(10);
+
+  Object.keys(SCHEMA).forEach(function (t) {
+    var d = SCHEMA[t];
+    if (!d.sheet) { bad.push(t + '　sheet がない'); return; }
+    if (!d.columns || !d.columns.length) { bad.push(t + '　columns がない'); return; }
+
+    var seen = {};
+    d.columns.forEach(function (c) {
+      if (!c.key)   { bad.push(t + '　key のない列がある'); return; }
+      if (!c.label) { bad.push(t + '.' + c.key + '　label がない'); }
+      if (seen[c.key]) { bad.push(t + '.' + c.key + '　key が重複している'); }
+      seen[c.key] = true;
+
+      // options には OPTIONS の名前（文字列）を書く。配列は書けない
+      if (c.options !== undefined) {
+        if (typeof c.options !== 'string') {
+          bad.push(t + '.' + c.key + '　options は OPTIONS の名前で書く' +
+                   '（配列は書けない）');
+        } else if (!OPTIONS[c.options]) {
+          bad.push(t + '.' + c.key + '　OPTIONS に ' + c.options + ' がない');
+        }
+      }
+
+      if (c.ref && !SCHEMA[c.ref]) {
+        bad.push(t + '.' + c.key + '　参照先 ' + c.ref + ' がない');
+      }
+    });
+
+    // 鍵に指定した列が、本当にあるか
+    var k = d.key;
+    if (k) {
+      var keys = Array.isArray(k) ? k : [k];
+      keys.forEach(function (x) {
+        if (!seen[x]) bad.push(t + '　鍵にした ' + x + ' という列がない');
+      });
+    }
+  });
+
+  if (bad.length) {
+    throw new Error(
+      'schema.js に直すところがあります（' + bad.length + '件）' + NLC +
+      bad.map(function (x) { return '　・' + x; }).join(NLC));
+  }
+  return true;
+}
+
+
 function setupSheets() {
   var mainId = PropertiesService.getScriptProperties().getProperty('MAIN_BOOK_ID');
   var persId = PropertiesService.getScriptProperties().getProperty('PERSONAL_BOOK_ID');
   if (!mainId || !persId) {
     throw new Error('MAIN_BOOK_ID と PERSONAL_BOOK_ID をスクリプトプロパティに設定してください');
   }
+
+  // ★シートを作り始める前に、定義そのものを確かめる。
+  //   途中で落ちると、シートが半分だけできた状態になり、
+  //   どこまで進んだのかが分からなくなる。
+  //   （2026-08-20  options に配列を書いてしまい、
+  //     15枚中の途中で TypeError で止まった）
+  checkSchema();
 
   var main = SpreadsheetApp.openById(mainId);
   var pers = SpreadsheetApp.openById(persId);

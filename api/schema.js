@@ -331,7 +331,8 @@ var SCHEMA = {
     key: null,
     columns: [
       { key: 'email',   label: 'メールアドレス', type: 'text' },
-      { key: 'kind',    label: '種別',       type: 'select', options: ['staff', 'user'] },
+      { key: 'kind',    label: '種別',       type: 'text',
+        note: 'staff（職員）／user（利用される方）' },
       { key: 'code',    label: '合言葉',     type: 'text' },
       { key: 'until',   label: '有効期限',   type: 'datetime' },
       { key: 'used',    label: '使用日時',   type: 'datetime' },
@@ -383,7 +384,8 @@ var SCHEMA = {
     key: 'token',
     columns: [
       { key: 'token',    label: '合言葉',   type: 'text' },
-      { key: 'kind',     label: '種別',     type: 'select', options: ['staff', 'user'] },
+      { key: 'kind',     label: '種別',     type: 'text',
+        note: 'staff（職員）／user（利用される方）' },
       { key: 'who_id',   label: '本人',     type: 'text' },
       { key: 'email',    label: 'メールアドレス', type: 'text' },
       { key: 'until',    label: '有効期限', type: 'datetime' },

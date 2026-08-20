@@ -529,7 +529,8 @@ var SCHEMA = {
     key: null,
     columns: [
       { key: 'email',   label: 'メールアドレス', type: 'text' },
-      { key: 'kind',    label: '種別',       type: 'select', options: ['staff', 'user'] },
+      { key: 'kind',    label: '種別',       type: 'text',
+        note: 'staff（職員）／user（利用される方）' },
       { key: 'code',    label: '合言葉',     type: 'text' },
       { key: 'until',   label: '有効期限',   type: 'datetime' },
       { key: 'used',    label: '使用日時',   type: 'datetime' },
@@ -581,7 +582,8 @@ var SCHEMA = {
     key: 'token',
     columns: [
       { key: 'token',    label: '合言葉',   type: 'text' },
-      { key: 'kind',     label: '種別',     type: 'select', options: ['staff', 'user'] },
+      { key: 'kind',     label: '種別',     type: 'text',
+        note: 'staff（職員）／user（利用される方）' },
       { key: 'who_id',   label: '本人',     type: 'text' },
       { key: 'email',    label: 'メールアドレス', type: 'text' },
       { key: 'until',    label: '有効期限', type: 'datetime' },
@@ -1052,8 +1054,26 @@ var API = (function () {
    * 申込を保存する。app_id が無ければ新規に採番する
    * ★利用日（T2）も同時に作る。期間から自動で展開する
    */
+  /**
+   * 申込を保存する
+   *
+   * ★入口で必ず確かめる。
+   *   確かめないと、こういうものが実際に入る（2026-08-20 の試験で判明）
+   *
+   *     forest_id なし　　→  2026-undefined-0001
+   *     date_from が 2026-13-45 →  NaN-HKD-0001
+   *     終了日 < 開始日　　→  利用日が0件の申込
+   *
+   *   利用日が0件だと、月次にも年報にも出てこない。
+   *   誰も気づかないまま「見えない申込」として残り続ける。
+   *   これは、あとから探し出すのがいちばん難しい形の壊れ方である。
+   */
   function saveApplication(data) {
     var isNew = !data.app_id;
+
+    if (isNew) {
+      checkApplication(data);
+    }
 
     if (isNew) {
       var prefix = fiscalYear(data.date_from || today()) + '-' + data.forest_id + '-';
@@ -1074,6 +1094,93 @@ var API = (function () {
       syncUsageDays(data.app_id, data.date_from, data.date_to);
     }
     return data.app_id;
+  }
+
+  /**
+   * 申込の中身を確かめる
+   * ★通らないものは、必ず例外にする。
+   *   黙って直すと、直したことに誰も気づけない。
+   */
+  function checkApplication(data) {
+    var ng = [];
+    var NLC = String.fromCharCode(10);
+
+    // ---- 演習林
+    if (!data.forest_id) {
+      ng.push('演習林が選ばれていません');
+    } else if (!db.findByKey('M_FOREST', data.forest_id)) {
+      ng.push('知らない演習林です　' + data.forest_id);
+    }
+
+    // ---- 日付
+    if (!isDate(data.date_from)) {
+      ng.push('利用開始日が正しくありません　' + (data.date_from || '（空）'));
+    }
+    if (!isDate(data.date_to)) {
+      ng.push('利用終了日が正しくありません　' + (data.date_to || '（空）'));
+    }
+    if (isDate(data.date_from) && isDate(data.date_to) &&
+        data.date_to < data.date_from) {
+      ng.push('終了日が開始日より前になっています　' +
+              data.date_from + ' 〜 ' + data.date_to);
+    }
+
+    // ---- 利用の目的
+    if (!String(data.purpose || '').trim()) {
+      ng.push('利用目的が空です');
+    }
+
+    // ---- 代表者
+    if (!data.rep_user_id) {
+      ng.push('利用代表者が決まっていません');
+    }
+
+    if (ng.length) {
+      throw new Error(
+        '申込の内容に足りないところがあります' + NLC +
+        ng.map(function (x) { return '　・' + x; }).join(NLC));
+    }
+    return true;
+  }
+
+  /**
+   * 2026-09-01 の形になっていて、実在する日かを見る
+   * ★形だけでなく、実在も見る。
+   *   2026-13-45 は形は合っているが、そんな日はない。
+   */
+  function isDate(v) {
+    var s = String(v || '');
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return false;
+    var y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return false;
+    var dt = new Date(y, mo - 1, d);
+    return dt.getFullYear() === y &&
+           dt.getMonth() === mo - 1 &&
+           dt.getDate() === d;
+  }
+
+  /**
+   * '202605' も '2026-05' も '2026-5' も、'2026-05' に揃える
+   * 正しくない形なら null
+   */
+  function normalizeYm(v) {
+    var s = String(v || '').trim();
+    var m = s.match(/^(\d{4})-?(\d{1,2})$/);
+    if (!m) return null;
+    var mo = Number(m[2]);
+    if (mo < 1 || mo > 12) return null;
+    return m[1] + '-' + ('0' + mo).slice(-2);
+  }
+
+  /**
+   * その月の最後の日
+   * ★'-31' の決め打ちにしない。2月も4月もある
+   */
+  function lastDayOf(ym) {
+    var p = ym.split('-');
+    var d = new Date(Number(p[0]), Number(p[1]), 0);   // 翌月の0日＝当月末
+    return ('0' + d.getDate()).slice(-2);
   }
 
   function firstStatusOf(forestId) {
@@ -1098,9 +1205,36 @@ var API = (function () {
    * ステータスを変える
    * ★変えた記録を必ず操作ログに残す
    */
+  /**
+   * ステータスを変える
+   *
+   * ★誰が変えたのかを確かめる。
+   *   緊急連絡先を開くときは職員かどうかを見ているのに、
+   *   ここだけ見ていなかった。（2026-08-20 の試験で判明）
+   *
+   * ★その演習林にある状態かどうかも見る。
+   *   打ち間違いでどんな文字列でも入ってしまうと、
+   *   一覧の絞り込みにも年報にも出てこない申込ができる。
+   */
   function updateStatus(appId, newStatus, staffId, note) {
     var a = db.findByKey('T_APPLICATION', appId);
     if (!a) return { ok: false, error: '申込が見つかりません' };
+
+    // ---- 誰が変えたのか
+    var staff = staffId ? db.findByKey('M_STAFF', staffId) : null;
+    if (!staff || staff.active === false) {
+      return { ok: false,
+               error: 'この操作には職員としてのログインが必要です' };
+    }
+
+    // ---- その演習林にある状態か
+    var known = db.readAll('M_STATUS').some(function (x) {
+      return x.forest_id === a.forest_id && x.code === newStatus;
+    });
+    if (!known) {
+      return { ok: false,
+               error: 'この演習林にない状態です　' + newStatus };
+    }
 
     var old = a.status;
     db.update('T_APPLICATION', appId, { status: newStatus, updated_at: now() });
@@ -1109,7 +1243,8 @@ var API = (function () {
       db.update('T_APPLICATION', appId, { approved_at: today() });
     }
 
-    writeAudit(staffId, 'ステータス変更', appId, old + ' → ' + newStatus);
+    writeAudit(staffId, 'ステータス変更', appId,
+               old + ' → ' + newStatus + (note ? '　' + note : ''));
 
     if (note) {
       addMessage(appId, {
@@ -1193,15 +1328,60 @@ var API = (function () {
    * ★代表者が入れるのは氏名とメールアドレスだけ
    *   個人情報は本人が直接入れる。代表者には見えない
    */
+  /**
+   * ご一緒に来られる方を招く
+   *
+   * ★メールアドレスがないまま利用者を作らない。
+   *
+   *   作ってしまうと、その方には招待が届かない。
+   *   届かなければ、代表者が代わりに生年月日やアレルギーを
+   *   聞いて書くことになる。
+   *   それは、この設計がなくそうとしている運用そのものである。
+   *   （2026-08-20 の試験で、実際に作れてしまうことが分かった）
+   *
+   * ★同じ方を二重に足さない。
+   *   1つの申込に同じ人が2行できると、人数が合わなくなる。
+   */
   function inviteParticipants(appId, list) {
+    var app = db.findByKey('T_APPLICATION', appId);
+    if (!app) {
+      throw new Error('申込が見つかりません　' + appId);
+    }
+
     var users = db.readAll('M_USER');
     var byEmail = {};
-    users.forEach(function (u) { byEmail[u.email] = u; });
+    users.forEach(function (u) {
+      if (u.email) byEmail[String(u.email).toLowerCase()] = u;
+    });
 
-    var result = { invited: 0, existing: 0 };
+    // すでにこの申込に入っている方
+    var already = {};
+    db.readAll('T_PARTICIPANT').forEach(function (r) {
+      if (r.app_id === appId && r.invite_email) {
+        already[String(r.invite_email).toLowerCase()] = true;
+      }
+    });
+
+    var result = { invited: 0, existing: 0, skipped: [] };
 
     list.forEach(function (p) {
-      var u = byEmail[p.email];
+      var email = String(p.email || '').trim().toLowerCase();
+
+      if (!email) {
+        result.skipped.push((p.name || '（お名前なし）') + '　メールアドレスがありません');
+        return;
+      }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        result.skipped.push((p.name || email) + '　メールアドレスの形が正しくありません');
+        return;
+      }
+      if (already[email]) {
+        result.skipped.push((p.name || email) + '　すでにこの申込に入っています');
+        return;
+      }
+      already[email] = true;
+
+      var u = byEmail[email];
       var userId;
 
       if (u) {
@@ -1210,8 +1390,9 @@ var API = (function () {
       } else {
         userId = db.nextId('M_USER', 'U');
         db.insert('M_USER', {
-          user_id: userId, email: p.email, name: p.name, updated_at: now()
+          user_id: userId, email: email, name: p.name, updated_at: now()
         });
+        byEmail[email] = { user_id: userId, email: email };
         result.invited++;
       }
 
@@ -1379,9 +1560,35 @@ var API = (function () {
    * 本部へ渡す月次データを作る
    * ★現在のCSVと同じ「一日一行」の形で出す。受け取り側は何も変えなくてよい
    */
+  /**
+   * 本部へ出す月次のデータ
+   *
+   * @param {string} forestId  演習林
+   * @param {string} yyyymm    '2026-05' でも '202605' でも受ける
+   *
+   * ★2026-08-20 の試験で見つかった不具合を直した。
+   *
+   *   もとは yyyymm + '-01' としていたため、
+   *   '202605' を渡すと '202605-01' という文字列になり、
+   *   利用日（'2026-05-28' の形）と比べても1件も一致しなかった。
+   *
+   *   怖いのは、例外ではなく空の配列が返ることだった。
+   *   本部への月次が「今月は0件でした」に見えて、
+   *   誰も気づけない形で間違いが伝わる。
+   *
+   *   月末の日も '-31' の決め打ちだったため、
+   *   2月や4月では実在しない日を指していた。
+   */
   function exportMonthly(forestId, yyyymm) {
-    var from = yyyymm + '-01';
-    var to = yyyymm + '-31';
+    var ym = normalizeYm(yyyymm);
+    if (!ym) {
+      // ★黙って空を返さない。何が悪いのかを言う
+      throw new Error(
+        '年月の書き方が正しくありません　' + yyyymm +
+        '（2026-05 または 202605 の形でお願いします）');
+    }
+    var from = ym + '-01';
+    var to = ym + '-' + lastDayOf(ym);
     var apps = byId(db.readAll('T_APPLICATION'), 'app_id');
     var out = [];
 
