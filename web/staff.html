@@ -207,6 +207,36 @@
   }
   .memo-who{font-size:11.5px; color:var(--gray); flex:1}
 
+  /* 職員の登録 */
+  table.staff{width:100%; border-collapse:collapse; font-size:13px}
+  table.staff th{
+    background:#EDF1ED; text-align:left; padding:7px 9px;
+    border-bottom:1px solid var(--line); font-weight:600; font-size:12.5px;
+  }
+  table.staff td{padding:7px 9px; border-bottom:1px solid var(--line)}
+  table.staff tr.off td{color:#9AA0A6; background:#F7F8F9}
+  .offmark{
+    display:inline-block; background:#9AA0A6; color:#fff; font-size:10.5px;
+    border-radius:3px; padding:1px 6px; margin-left:6px;
+  }
+  .selfmark{font-size:11.5px; color:var(--gray)}
+  .sa-form{
+    display:grid; grid-template-columns:120px 1fr; gap:8px 12px;
+    align-items:center; max-width:640px; margin-bottom:16px;
+  }
+  .sa-form label{font-size:12.5px; color:var(--gray)}
+  .sa-form input, .sa-form select{
+    padding:6px 8px; font-size:13px; font-family:inherit;
+    border:1px solid var(--line); border-radius:4px; width:100%;
+  }
+  .sa-form .btn{grid-column:2; justify-self:start; margin-top:4px}
+  .sa-roles{
+    background:#F7F8F9; border-radius:5px; padding:10px 13px;
+    font-size:12.5px; line-height:2; margin-bottom:10px;
+  }
+  .sa-roles-t{font-weight:600; margin-bottom:3px; color:var(--green)}
+  .sa-roles b{font-weight:600}
+
   /* 入力が残っていることの表示 */
   .savednote{
     background:#FFF8E6; border-bottom:1px solid #E4D5A8;
@@ -281,6 +311,7 @@
   <button data-tab="rooms">宿泊の空き</button>
   <button data-tab="nenpo">年報の集計</button>
   <button data-tab="audit">操作の記録</button>
+  <button data-tab="staffadmin" id="tab-staffadmin" style="display:none">職員</button>
 </nav>
 
 <div id="savednote" class="savednote" style="display:none"></div>
@@ -291,6 +322,7 @@
   <div class="panel" id="p-rooms"></div>
   <div class="panel" id="p-nenpo"></div>
   <div class="panel" id="p-audit"></div>
+  <div class="panel" id="p-staffadmin"></div>
   <div class="panel" id="p-detail"></div>
 </main>
 
@@ -308,6 +340,7 @@ if (typeof NL === "undefined") var NL = String.fromCharCode(10);
 <script src="../api/forms_seed.js"></script>
 <script src="_login.js"></script>
 <script src="_list.js"></script>
+<script src="_staffadmin.js"></script>
 <script>
 /* ------------------------------------------------------------------
    画面側のコード
@@ -495,11 +528,17 @@ function renderUnseenBadge(){
 function render(){
   renderUnseenBadge();
   renderSavedNote();
+
+  // ★職員の登録は、システム管理者だけに見せる。
+  //   見えていて押せないより、見えないほうが分かりやすい。
+  var ta = $('tab-staffadmin');
+  if(ta) ta.style.display = (StaffAdmin && StaffAdmin.isAdmin()) ? '' : 'none';
   document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('on'); });
   var id = 'p-' + state.tab;
   $(id).classList.add('on');
   ({cal:renderCalendar, list:renderList, person:renderPerson, rooms:renderRooms,
-    nenpo:renderNenpo, audit:renderAudit, detail:renderDetail})[state.tab]();
+    nenpo:renderNenpo, audit:renderAudit, detail:renderDetail,
+    staffadmin:function(){ StaffAdmin.render(); }})[state.tab]();
 }
 
 // ================================================ カレンダー

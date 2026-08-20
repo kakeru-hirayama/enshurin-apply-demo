@@ -217,6 +217,36 @@
   }
   .memo-who{font-size:11.5px; color:var(--gray); flex:1}
 
+  /* 職員の登録 */
+  table.staff{width:100%; border-collapse:collapse; font-size:13px}
+  table.staff th{
+    background:#EDF1ED; text-align:left; padding:7px 9px;
+    border-bottom:1px solid var(--line); font-weight:600; font-size:12.5px;
+  }
+  table.staff td{padding:7px 9px; border-bottom:1px solid var(--line)}
+  table.staff tr.off td{color:#9AA0A6; background:#F7F8F9}
+  .offmark{
+    display:inline-block; background:#9AA0A6; color:#fff; font-size:10.5px;
+    border-radius:3px; padding:1px 6px; margin-left:6px;
+  }
+  .selfmark{font-size:11.5px; color:var(--gray)}
+  .sa-form{
+    display:grid; grid-template-columns:120px 1fr; gap:8px 12px;
+    align-items:center; max-width:640px; margin-bottom:16px;
+  }
+  .sa-form label{font-size:12.5px; color:var(--gray)}
+  .sa-form input, .sa-form select{
+    padding:6px 8px; font-size:13px; font-family:inherit;
+    border:1px solid var(--line); border-radius:4px; width:100%;
+  }
+  .sa-form .btn{grid-column:2; justify-self:start; margin-top:4px}
+  .sa-roles{
+    background:#F7F8F9; border-radius:5px; padding:10px 13px;
+    font-size:12.5px; line-height:2; margin-bottom:10px;
+  }
+  .sa-roles-t{font-weight:600; margin-bottom:3px; color:var(--green)}
+  .sa-roles b{font-weight:600}
+
   /* 入力が残っていることの表示 */
   .savednote{
     background:#FFF8E6; border-bottom:1px solid #E4D5A8;
@@ -291,6 +321,7 @@
   <button data-tab="rooms">宿泊の空き</button>
   <button data-tab="nenpo">年報の集計</button>
   <button data-tab="audit">操作の記録</button>
+  <button data-tab="staffadmin" id="tab-staffadmin" style="display:none">職員</button>
 </nav>
 
 <div id="savednote" class="savednote" style="display:none"></div>
@@ -301,6 +332,7 @@
   <div class="panel" id="p-rooms"></div>
   <div class="panel" id="p-nenpo"></div>
   <div class="panel" id="p-audit"></div>
+  <div class="panel" id="p-staffadmin"></div>
   <div class="panel" id="p-detail"></div>
 </main>
 
@@ -5022,6 +5054,214 @@ var ListView = (function () {
 
 </script>
 <script>
+/* ===== _staffadmin.js ===== */
+/**
+ * _staffadmin.js  職員の登録と、使用の停止
+ *
+ * ■ なぜ画面が要るか
+ *   職員は自分では登録できない決まりにしている。
+ *   誰でも入れてしまうと、権限を分ける意味がなくなるため。
+ *
+ *   だが、登録できるのが作った人だけだと、
+ *   引き継いだあとに人が増やせない。
+ *   ★システム管理者が、画面から入れられるようにする。
+ *
+ * ■ 消さずに止める
+ *   一度登録した方を消すと、操作の記録に残っている
+ *   「誰が」が辿れなくなる。
+ *   使わなくなった方は、消さずに「使用を止める」形にする。
+ *   止めた方はログインできず、一覧では灰色になる。
+ */
+
+var StaffAdmin = (function () {
+
+  var ROLES = [
+    ['施設担当者',     '担当する演習林の申込を見て、進める。個人情報も見られる'],
+    ['施設管理者',     '同上。加えて設定を変えられる'],
+    ['本部担当者',     '全演習林の集計を見る。★個人情報は見られない'],
+    ['システム管理者', '全部。職員の登録もできる']
+  ];
+
+  function meId() {
+    try {
+      var me = Auth.current();
+      return me ? me.id : '';
+    } catch (e) { return ''; }
+  }
+
+  function isAdmin() {
+    try {
+      var me = Auth.current();
+      return !!(me && me.role === 'システム管理者');
+    } catch (e) { return false; }
+  }
+
+  function render() {
+    var el = document.getElementById('p-staffadmin');
+    if (!el) return;
+
+    if (!isAdmin()) {
+      el.innerHTML =
+        '<div class="empty">この画面は、システム管理者のみがご覧になれます。</div>';
+      return;
+    }
+
+    var rows = [];
+    try { rows = API.adapter().readAll('M_STAFF'); } catch (e) {}
+    var forests = [];
+    try { forests = API.getMasters().forests; } catch (e) {}
+
+    var fname = {};
+    forests.forEach(function (f) { fname[f.forest_id] = f.name; });
+
+    el.innerHTML =
+      '<div class="card"><h3>職員　' + rows.length + ' 名</h3><div class="body">' +
+        '<table class="staff"><thead><tr>' +
+          '<th>ID</th><th>お名前</th><th>役割</th><th>担当</th>' +
+          '<th>メールアドレス</th><th></th>' +
+        '</tr></thead><tbody>' +
+        rows.map(function (s) {
+          var off = (s.active === false);
+          return '<tr class="' + (off ? 'off' : '') + '">' +
+            '<td class="nowrap">' + esc(s.staff_id) + '</td>' +
+            '<td>' + esc(s.name) + (off ? '<span class="offmark">使用停止</span>' : '') + '</td>' +
+            '<td class="nowrap">' + esc(s.role) + '</td>' +
+            '<td class="nowrap">' + esc(s.forest_id ? (fname[s.forest_id] || s.forest_id) : '全演習林') + '</td>' +
+            '<td class="nowrap">' + esc(s.login_id || s.email || '') + '</td>' +
+            '<td class="nowrap">' +
+              (s.staff_id === meId() ? '<span class="selfmark">ご自身</span>' :
+                (off ? '<button class="btn sub" onclick="StaffAdmin.revive(' + q(s.staff_id) + ')">使えるように戻す</button>'
+                     : '<button class="btn sub" onclick="StaffAdmin.stop(' + q(s.staff_id) + ')">使用を止める</button>')) +
+            '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table>' +
+      '</div></div>' +
+
+      '<div class="card"><h3>職員を登録する</h3><div class="body">' +
+        '<div class="sa-form">' +
+          '<label>お名前</label>' +
+          '<input type="text" id="sa-name" placeholder="山田 太郎">' +
+
+          '<label>メールアドレス</label>' +
+          '<input type="email" id="sa-mail" placeholder="yamada@uf.a.u-tokyo.ac.jp">' +
+
+          '<label>役割</label>' +
+          '<select id="sa-role">' +
+            ROLES.map(function (r) {
+              return '<option value="' + r[0] + '">' + r[0] + '</option>';
+            }).join('') +
+          '</select>' +
+
+          '<label>担当する演習林</label>' +
+          '<select id="sa-forest">' +
+            '<option value="">全演習林（本部・管理者向け）</option>' +
+            forests.map(function (f) {
+              return '<option value="' + f.forest_id + '">' + esc(f.name) + '</option>';
+            }).join('') +
+          '</select>' +
+
+          '<button class="btn" onclick="StaffAdmin.add()">登録して、ご案内を送る</button>' +
+        '</div>' +
+
+        '<div class="sa-roles">' +
+          '<div class="sa-roles-t">役割の違い</div>' +
+          ROLES.map(function (r) {
+            return '<div><b>' + r[0] + '</b>　' + r[1] + '</div>';
+          }).join('') +
+        '</div>' +
+
+        '<div class="note">★ご登録の方には、ログインのご案内をお送りします。' +
+          'パスワードはありません。ログインのたびに6桁の番号をお送りします。<br>' +
+          '　★消さずに「使用を止める」形にしています。' +
+          '消すと、操作の記録に残っている「誰が」が辿れなくなるためです。</div>' +
+      '</div></div>';
+  }
+
+  function q(v) {
+    return String.fromCharCode(39) +
+           String(v).replace(/[^0-9A-Za-z_-]/g, '') +
+           String.fromCharCode(39);
+  }
+
+  function add() {
+    var name = (document.getElementById('sa-name') || {}).value || '';
+    var mail = (document.getElementById('sa-mail') || {}).value || '';
+    var role = (document.getElementById('sa-role') || {}).value || '';
+    var forest = (document.getElementById('sa-forest') || {}).value || '';
+
+    name = name.trim();
+    mail = mail.trim().toLowerCase();
+
+    if (!name) { alert('お名前をご入力ください'); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) {
+      alert('メールアドレスをご確認ください'); return;
+    }
+
+    // ★演習林を選ばない役割と、選ぶべき役割がある
+    if ((role === '施設担当者' || role === '施設管理者') && !forest) {
+      if (!confirm('担当する演習林が選ばれていません。' + NL + NL +
+                   'このままですと全演習林が見えます。よろしいですか。')) return;
+    }
+
+    var r;
+    try {
+      r = API.inviteStaff ? API.inviteStaff(mail, name, forest, role)
+                          : Auth.inviteStaff(mail, name, forest, role);
+    } catch (e) {
+      alert('登録できませんでした' + NL + NL + (e.message || ''));
+      return;
+    }
+    if (!r || !r.ok) { alert((r && r.error) || '登録できませんでした'); return; }
+
+    alert(name + ' さんを登録しました。' + NL + NL +
+          'ログインのご案内をお送りしました。');
+    render();
+  }
+
+  function stop(staffId) {
+    var s = API.adapter().findByKey('M_STAFF', staffId);
+    if (!s) return;
+    if (!confirm(s.name + ' さんの使用を止めます。' + NL + NL +
+                 'ログインできなくなります。' + NL +
+                 '記録は残りますので、あとから戻すこともできます。')) return;
+
+    try {
+      Auth.deactivateStaff(staffId);
+    } catch (e) {
+      alert('止められませんでした' + NL + NL + (e.message || ''));
+      return;
+    }
+    render();
+  }
+
+  function revive(staffId) {
+    var s = API.adapter().findByKey('M_STAFF', staffId);
+    if (!s) return;
+    if (!confirm(s.name + ' さんを、また使えるようにします。よろしいですか。')) return;
+
+    API.adapter().update('M_STAFF', staffId, { active: true });
+    try {
+      API.adapter().insert('T_AUDIT', {
+        at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        staff_id: meId(), action: '職員を戻した', target: staffId,
+        detail: s.name, ip: ''
+      });
+    } catch (e) {}
+    render();
+  }
+
+  return {
+    render: render,
+    isAdmin: isAdmin,
+    add: add,
+    stop: stop,
+    revive: revive
+  };
+})();
+
+</script>
+<script>
 /* ------------------------------------------------------------------
    画面側のコード
 
@@ -5208,11 +5448,17 @@ function renderUnseenBadge(){
 function render(){
   renderUnseenBadge();
   renderSavedNote();
+
+  // ★職員の登録は、システム管理者だけに見せる。
+  //   見えていて押せないより、見えないほうが分かりやすい。
+  var ta = $('tab-staffadmin');
+  if(ta) ta.style.display = (StaffAdmin && StaffAdmin.isAdmin()) ? '' : 'none';
   document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('on'); });
   var id = 'p-' + state.tab;
   $(id).classList.add('on');
   ({cal:renderCalendar, list:renderList, person:renderPerson, rooms:renderRooms,
-    nenpo:renderNenpo, audit:renderAudit, detail:renderDetail})[state.tab]();
+    nenpo:renderNenpo, audit:renderAudit, detail:renderDetail,
+    staffadmin:function(){ StaffAdmin.render(); }})[state.tab]();
 }
 
 // ================================================ カレンダー
