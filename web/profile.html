@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>東京大学演習林　ご自身の情報の登録</title>
+<style>
+  :root{
+    --green:#2C5530; --green-mid:#4A7A4A; --green-pale:#EDF3ED;
+    --gray:#666; --line:#DDE2DD; --pale:#F7F9F7;
+    --accent:#B02418; --accent-pale:#FBEDEC;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+    color:#222; background:#F4F6F4; font-size:15px; line-height:1.75;
+  }
+  header{background:var(--green); color:#fff; padding:14px 20px}
+  header h1{font-size:17px; margin:0; font-weight:600}
+  header .sub{font-size:12px; opacity:.8; margin-top:2px}
+
+  .wrap{max-width:700px; margin:0 auto; padding:20px 16px 70px}
+  .card{background:#fff; border:1px solid var(--line); border-radius:5px;
+        padding:20px 22px; margin-bottom:16px}
+  .card h2{font-size:16px; color:var(--green); margin:0 0 4px; font-weight:600}
+  .card .lead{font-size:13px; color:var(--gray); margin:0 0 16px}
+
+  label.f{display:block; margin-bottom:16px}
+  label.f .t{display:block; font-size:13px; font-weight:600; margin-bottom:3px}
+  label.f .t .req{color:var(--accent); font-size:11px; margin-left:6px}
+  label.f .t .opt{color:var(--gray); font-size:11px; margin-left:6px; font-weight:400}
+  label.f .h{display:block; font-size:11.5px; color:var(--gray); margin-bottom:5px}
+  input[type=text], input[type=email], input[type=tel], input[type=number],
+  select{
+    width:100%; padding:8px 10px; border:1px solid #C8CFC8; border-radius:4px;
+    font-size:14px; font-family:inherit; background:#fff;
+  }
+  input:focus, select:focus{
+    outline:none; border-color:var(--green-mid); box-shadow:0 0 0 2px var(--green-pale);
+  }
+  input.bad, select.bad{border-color:var(--accent); background:#FFFAFA}
+  .row{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+
+  /* 生年月日　年・月・日を分けて入れる */
+  .ymd{display:grid; grid-template-columns:1.4fr auto 1fr auto 1fr auto; gap:6px;
+       align-items:center}
+  .ymd span{font-size:13px; color:var(--gray)}
+  .ymd input{text-align:center}
+
+  .btn{padding:10px 22px; border:none; border-radius:4px; cursor:pointer;
+       font-size:14px; font-family:inherit; font-weight:600}
+  .btn.p{background:var(--green); color:#fff}
+  .btn.p:hover{background:#234425}
+  .btn.p:disabled{background:#BBB; cursor:not-allowed}
+  .btn.s{background:#fff; color:var(--green); border:1px solid var(--green-mid)}
+  .actions{display:flex; gap:10px; justify-content:flex-end; margin-top:20px}
+
+  .msg{padding:11px 14px; border-radius:4px; font-size:13px; margin-bottom:16px}
+  .msg.ok{background:var(--green-pale); border:1px solid var(--green-mid); color:var(--green)}
+  .msg.err{background:var(--accent-pale); border:1px solid var(--accent); color:var(--accent)}
+  .msg.info{background:#EEF3F9; border:1px solid #3D5A8A; color:#1F3864}
+
+  .hl{background:#FFF8E6; padding:2px 5px; border-radius:2px}
+  .note{font-size:12px; color:var(--gray); margin-top:10px; line-height:1.75}
+  .err-line{color:var(--accent); font-size:12px; margin-top:3px}
+  .apps{font-size:13px; color:var(--gray); margin-top:6px}
+  .apps li{margin-bottom:3px}
+  .devnote{
+    margin-top:22px; padding:11px 13px; background:#fff;
+    border:1px dashed var(--line); border-radius:4px;
+    font-size:11.5px; color:var(--gray); line-height:1.8;
+  }
+  .devnote b{color:var(--green)}
+  @media(max-width:600px){ .row{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>東京大学演習林</h1>
+  <div class="sub">ご自身の情報の登録</div>
+</header>
+
+<div class="wrap"><div id="view"></div></div>
+
+<script src="../api/schema.js"></script>
+<script src="../api/adapter_memory.js"></script>
+<script src="../api/api.js"></script>
+<script src="../api/seed.js"></script>
+<script src="../api/forms_seed.js"></script>
+<script>
+/* ------------------------------------------------------------------
+   参加者ご本人が、ご自身の情報を登録する画面
+
+   ★この画面だけが、個人情報を書き込める。
+     利用代表者の画面からは、ここで入れた内容は見えない。
+
+   本来は、招待メールに含まれる一度きりのURLから開く。
+   ここでは、その画面を確かめられるようにしてある。
+------------------------------------------------------------------ */
+
+if (typeof FORMS_SEED !== 'undefined') SEED.M_FORM = FORMS_SEED;
+loadSeed(MemoryAdapter);
+
+// 招待された方として振る舞う。本来はURLのトークンから特定する
+var UID = (new URLSearchParams(location.search)).get('u') || 'U0002';
+
+var F = {};      // 入力中の内容
+var ERR = {};    // 項目ごとのエラー
+var DONE = false;
+
+function $(id){ return document.getElementById(id); }
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+  });
+}
+
+// ------------------------------------------------ 入力の検査
+
+/**
+ * 電話番号を、ハイフンありの形にそろえる
+ * ★入れ方は人によって違う。保存する形は1つに決めておく
+ */
+function normalizeTel(v){
+  // 全角の数字を半角にしてから、数字以外を落とす
+  // ★順序が逆だと、全角のまま数字以外として消えてしまう
+  var d = String(v||'')
+            .replace(/[０-９]/g, function(c){
+              return '0123456789'['０１２３４５６７８９'.indexOf(c)]; })
+            .replace(/[^\d]/g,'');
+  if(!d) return '';
+  if(d.length === 11) return d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);      // 携帯
+  if(d.length === 10){
+    if(d.slice(0,2) === '03' || d.slice(0,2) === '06')                           // 東京・大阪
+      return d.slice(0,2)+'-'+d.slice(2,6)+'-'+d.slice(6);
+    return d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6);
+  }
+  return v;
+}
+
+function validTel(v){
+  var d = String(v||'')
+            .replace(/[０-９]/g, function(c){
+              return '0123456789'['０１２３４５６７８９'.indexOf(c)]; })
+            .replace(/[^\d]/g,'');
+  return d.length >= 10 && d.length <= 11;
+}
+
+function buildBirth(){
+  if(!F.by || !F.bm || !F.bd) return '';
+  var y = parseInt(F.by,10), m = parseInt(F.bm,10), d = parseInt(F.bd,10);
+  if(!y || !m || !d) return '';
+  return y + '-' + ('0'+m).slice(-2) + '-' + ('0'+d).slice(-2);
+}
+
+function validBirth(){
+  if(!F.by || !F.bm || !F.bd) return '生年月日をご入力ください';
+  var y = +F.by, m = +F.bm, d = +F.bd;
+  var now = new Date().getFullYear();
+  if(y < 1900 || y > now) return '西暦をご確認ください';
+  if(m < 1 || m > 12) return '月をご確認ください';
+  var last = new Date(y, m, 0).getDate();
+  if(d < 1 || d > last) return y + '年' + m + '月は' + last + '日までです';
+  return '';
+}
+
+/** 必須の項目。すべて埋まらないと登録できない */
+var REQUIRED = [
+  ['name',        '氏名'],
+  ['name_kana',   'ふりがな'],
+  ['org',         'ご所属'],
+  ['org_type',    '所属の区分'],
+  ['status_type', '身分'],
+  ['gender',      '性別'],
+  ['birth',       '生年月日'],
+  ['nationality', '国籍・出身国'],
+  ['emergency',   '緊急連絡先']
+];
+
+function validate(){
+  ERR = {};
+  REQUIRED.forEach(function(r){
+    if(r[0] === 'birth'){
+      var e = validBirth();
+      if(e) ERR.birth = e;
+      return;
+    }
+    if(!F[r[0]]) ERR[r[0]] = r[1] + 'をご入力ください';
+  });
+  if(F.emergency && !validTel(F.emergency)){
+    ERR.emergency = '電話番号の桁数をご確認ください';
+  }
+  if(F.name_kana && !/^[ぁ-んー\s　]+$/.test(F.name_kana)){
+    ERR.name_kana = 'ひらがなでご入力ください';
+  }
+  return Object.keys(ERR).length === 0;
+}
+
+// ------------------------------------------------ 画面
+
+function init(){
+  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
+  F = {
+    name: u.name || '', name_kana: u.name_kana || '',
+    org: u.org || '', org_type: u.org_type || '',
+    status_type: u.status_type || '', gender: u.gender || '',
+    nationality: u.nationality || '日本',
+    allergy: u.allergy || '', emergency: u.emergency || '',
+    by:'', bm:'', bd:''
+  };
+  if(u.birth_date){
+    var p = String(u.birth_date).split('-');
+    if(p.length === 3){ F.by = +p[0]; F.bm = +p[1]; F.bd = +p[2]; }
+  }
+  render();
+}
+
+function set(k, v){ F[k] = v; if(ERR[k]) { delete ERR[k]; render(); } }
+
+function field(key, label, opts){
+  opts = opts || {};
+  var e = ERR[key];
+  return '<label class="f"><span class="t">'+esc(label)+
+    (opts.optional ? '<span class="opt">任意</span>'
+                   : '<span class="req">必須</span>')+'</span>'+
+    (opts.help ? '<span class="h">'+opts.help+'</span>' : '')+
+    '<input type="'+(opts.type||'text')+'" value="'+esc(F[key]||'')+'" '+
+      (opts.placeholder ? 'placeholder="'+esc(opts.placeholder)+'" ' : '')+
+      (e ? 'class="bad" ' : '')+
+      'oninput="F.'+key+'=this.value" '+
+      'onblur="set(\''+key+'\',this.value)"></label>'.replace('</label>',
+      (e ? '<div class="err-line">'+esc(e)+'</div>' : '')+'</label>');
+}
+
+function selectField(key, label, options, opts){
+  opts = opts || {};
+  var e = ERR[key];
+  return '<label class="f"><span class="t">'+esc(label)+
+    (opts.optional ? '<span class="opt">任意</span>'
+                   : '<span class="req">必須</span>')+'</span>'+
+    (opts.help ? '<span class="h">'+opts.help+'</span>' : '')+
+    '<select onchange="set(\''+key+'\',this.value)"'+(e?' class="bad"':'')+'>'+
+      '<option value="">選んでください</option>'+
+      options.map(function(o){
+        return '<option'+(F[key]===o?' selected':'')+'>'+esc(o)+'</option>';
+      }).join('')+
+    '</select>'+
+    (e ? '<div class="err-line">'+esc(e)+'</div>' : '')+
+  '</label>';
+}
+
+function render(){
+  if(DONE) return renderDone();
+
+  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
+  var myApps = MemoryAdapter.readAll('T_PARTICIPANT')
+    .filter(function(p){ return p.user_id === UID; })
+    .map(function(p){ return MemoryAdapter.findByKey('T_APPLICATION', p.app_id); })
+    .filter(function(a){ return a; });
+  var forests = {};
+  API.getMasters().forests.forEach(function(f){ forests[f.forest_id] = f.name; });
+
+  var eb = ERR.birth;
+
+  $('view').innerHTML =
+  '<div class="card">'+
+    '<h2>ご自身の情報をご登録ください</h2>'+
+    '<p class="lead">'+esc(u.name || '')+' 様</p>'+
+
+    (myApps.length ?
+      '<div class="msg info">'+
+        'このお申し込みにご一緒される方として、お名前が登録されています。'+
+        '<ul class="apps">'+myApps.slice(0,3).map(function(a){
+          return '<li>'+esc(forests[a.forest_id]||a.forest_id)+'　'+
+            esc(a.date_from)+' 〜 '+esc(a.date_to)+'　'+esc(a.purpose)+'</li>';
+        }).join('')+'</ul>'+
+      '</div>' : '')+
+
+    '<div class="msg ok">'+
+      'ご入力いただいた内容は、演習林の担当者のみが確認いたします。<br>'+
+      '<b>利用代表者の方には表示されません。</b>'+
+    '</div>'+
+
+    (Object.keys(ERR).length ?
+      '<div class="msg err">ご入力いただいていない項目が '+
+        Object.keys(ERR).length+' 点あります。</div>' : '')+
+
+    '<div class="row">'+
+      field('name', 'お名前')+
+      field('name_kana', 'ふりがな', {help:'ひらがなでご入力ください',
+                                      placeholder:'やまだ たろう'})+
+    '</div>'+
+
+    field('org', 'ご所属', {placeholder:'東京大学大学院農学生命科学研究科 森林科学専攻'})+
+
+    selectField('org_type', '所属の区分', OPTIONS.ORG_TYPE)+
+
+    '<div class="row">'+
+      selectField('status_type', '身分', OPTIONS.STATUS_TYPE)+
+      selectField('gender', '性別', OPTIONS.GENDER)+
+    '</div>'+
+
+    // 生年月日　年・月・日を分けて数字で入れる
+    '<label class="f"><span class="t">生年月日<span class="req">必須</span></span>'+
+      '<span class="h">利用日の時点での年齢の計算に使います。'+
+        '毎回おうかがいしなくて済むよう、こちらで計算いたします</span>'+
+      '<div class="ymd">'+
+        '<input type="number" inputmode="numeric" placeholder="1990" '+
+          'value="'+esc(F.by||'')+'" min="1900" max="2100" '+
+          (eb?'class="bad" ':'')+'oninput="F.by=this.value" '+
+          'onblur="set(\'by\',this.value)"><span>年</span>'+
+        '<input type="number" inputmode="numeric" placeholder="1" '+
+          'value="'+esc(F.bm||'')+'" min="1" max="12" '+
+          (eb?'class="bad" ':'')+'oninput="F.bm=this.value" '+
+          'onblur="set(\'bm\',this.value)"><span>月</span>'+
+        '<input type="number" inputmode="numeric" placeholder="1" '+
+          'value="'+esc(F.bd||'')+'" min="1" max="31" '+
+          (eb?'class="bad" ':'')+'oninput="F.bd=this.value" '+
+          'onblur="set(\'bd\',this.value)"><span>日</span>'+
+      '</div>'+
+      (eb ? '<div class="err-line">'+esc(eb)+'</div>' : '')+
+    '</label>'+
+
+    field('nationality', '国籍・出身国',
+      {help:'年間の利用実績の集計に使います', placeholder:'日本'})+
+
+    field('allergy', '食物アレルギー', {optional:true,
+      help:'宿泊施設で食事をご用意する際に必要です。ない場合は空欄で構いません',
+      placeholder:'そば、甲殻類 など'})+
+
+    '<label class="f"><span class="t">緊急連絡先<span class="req">必須</span></span>'+
+      '<span class="h"><span class="hl">通常はどなたにも表示されません。'+
+        '事故などの緊急時にのみ、演習林の担当者が確認いたします。'+
+        'その際は、いつ誰が確認したかの記録が残ります</span></span>'+
+      '<input type="tel" inputmode="tel" value="'+esc(F.emergency||'')+'" '+
+        'placeholder="090-1234-5678" '+(ERR.emergency?'class="bad" ':'')+
+        'oninput="F.emergency=this.value" '+
+        'onblur="F.emergency=normalizeTel(this.value);set(\'emergency\',F.emergency)">'+
+      (ERR.emergency ? '<div class="err-line">'+esc(ERR.emergency)+'</div>' : '')+
+      '<div class="note">ハイフンはあってもなくても構いません。'+
+        'こちらで同じ形にそろえて保存いたします</div>'+
+    '</label>'+
+
+    '<div class="actions">'+
+      '<button class="btn p" onclick="submit()">登録する</button>'+
+    '</div>'+
+
+    '<div class="note">'+
+      '一度ご登録いただきますと、7つの演習林すべてで共通してお使いいただけます。<br>'+
+      '次回以降のお申し込みでは、内容のご確認だけで済みます。<br>'+
+      'ご登録内容は、いつでもご自身で変更していただけます。'+
+    '</div>'+
+  '</div>'+
+  devNote('saveMyProfile( ) を呼ぶ。この画面だけが個人情報を書き込める');
+}
+
+function submit(){
+  if(!validate()){ render(); window.scrollTo(0,0); return; }
+  API.saveMyProfile(UID, {
+    name: F.name, name_kana: F.name_kana, org: F.org,
+    org_type: F.org_type, status_type: F.status_type, gender: F.gender,
+    birth_date: buildBirth(), nationality: F.nationality,
+    allergy: F.allergy, emergency: normalizeTel(F.emergency)
+  });
+  DONE = true;
+  render();
+  window.scrollTo(0,0);
+}
+
+function renderDone(){
+  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
+  var age = (function(){
+    var b = new Date(u.birth_date), n = new Date();
+    var a = n.getFullYear()-b.getFullYear();
+    var m = n.getMonth()-b.getMonth();
+    if(m<0 || (m===0 && n.getDate()<b.getDate())) a--;
+    return a;
+  })();
+  $('view').innerHTML =
+  '<div class="card">'+
+    '<h2>ご登録ありがとうございました</h2>'+
+    '<div class="msg ok">ご登録が完了しました。'+
+      '利用代表者の方には、お名前とご登録の状況のみが表示されます。</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:13.5px">'+
+      [['お名前', u.name+'（'+u.name_kana+'）'],
+       ['ご所属', u.org],
+       ['身分', u.status_type],
+       ['生年月日', u.birth_date + '　現在 '+age+'歳'],
+       ['国籍・出身国', u.nationality],
+       ['食物アレルギー', u.allergy || 'なし'],
+       ['緊急連絡先', u.emergency]
+      ].map(function(r){
+        return '<tr><th style="text-align:left;padding:6px 9px;width:150px;'+
+          'background:var(--green-pale);color:var(--green);font-size:12px">'+
+          esc(r[0])+'</th><td style="padding:6px 9px;border-bottom:1px solid var(--line)">'+
+          esc(r[1])+'</td></tr>';
+      }).join('')+
+    '</table>'+
+    '<div class="note">'+
+      '★緊急連絡先は、この確認画面以外には表示されません。<br>'+
+      '　演習林の担当者の画面でも伏せられており、'+
+      '開くと「いつ誰が開いたか」が記録されます。'+
+    '</div>'+
+    '<div class="actions">'+
+      '<button class="btn s" onclick="DONE=false;render()">内容を変更する</button>'+
+    '</div>'+
+  '</div>'+
+  devNote('職員の画面では、この方の登録状況が「登録済」に変わっている');
+}
+
+function devNote(t){
+  return '<div class="devnote"><b>この画面が呼んでいるもの</b>　'+esc(t)+'<br>'+
+    '利用者の画面・職員の画面と同じ API 層を使っている。'+
+    '違うのは、どの関数を呼べるかだけ。</div>';
+}
+
+init();
+</script>
+</body>
+</html>

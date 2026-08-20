@@ -1,150 +1,87 @@
-<!--
-  東京大学演習林 利用申込システム　試作
-  2026年08月20日　平山翔湧
-
-  ★このページのデータはすべて架空のものです。
-    実在の利用者・研究課題を示すものではありません。
-    件数と日数の規模のみ、実際の運用にもとづいています。
-
-  外部との通信は行いません。1ファイルで動きます。
--->
 <!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>東京大学演習林　利用申込</title>
+<title>東京大学演習林　ご自身の情報の登録</title>
 <style>
   :root{
     --green:#2C5530; --green-mid:#4A7A4A; --green-pale:#EDF3ED;
-    --navy:#1F3864; --gray:#666; --line:#DDE2DD; --pale:#F7F9F7;
+    --gray:#666; --line:#DDE2DD; --pale:#F7F9F7;
     --accent:#B02418; --accent-pale:#FBEDEC;
-    --bg:#fff; --fg:#222;
   }
   *{box-sizing:border-box}
   body{
     margin:0; font-family:"Segoe UI","Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
-    color:var(--fg); background:#F4F6F4; font-size:15px; line-height:1.75;
+    color:#222; background:#F4F6F4; font-size:15px; line-height:1.75;
   }
   header{background:var(--green); color:#fff; padding:14px 20px}
   header h1{font-size:17px; margin:0; font-weight:600}
   header .sub{font-size:12px; opacity:.8; margin-top:2px}
 
-  .wrap{max-width:820px; margin:0 auto; padding:20px 16px 70px}
-
-  /* 進み具合 */
-  .steps{display:flex; margin:0 0 22px; background:#fff; border:1px solid var(--line);
-         border-radius:5px; overflow:hidden}
-  .steps div{
-    flex:1; padding:9px 6px; text-align:center; font-size:12px; color:var(--gray);
-    border-right:1px solid var(--line); position:relative;
-  }
-  .steps div:last-child{border-right:none}
-  .steps div.on{background:var(--green); color:#fff; font-weight:600}
-  .steps div.done{background:var(--green-pale); color:var(--green)}
-  .steps .n{
-    display:inline-block; width:18px; height:18px; line-height:18px; border-radius:50%;
-    background:#DDD; color:#fff; font-size:11px; margin-right:5px;
-  }
-  .steps div.on .n{background:#fff; color:var(--green)}
-  .steps div.done .n{background:var(--green-mid)}
-
+  .wrap{max-width:700px; margin:0 auto; padding:20px 16px 70px}
   .card{background:#fff; border:1px solid var(--line); border-radius:5px;
         padding:20px 22px; margin-bottom:16px}
   .card h2{font-size:16px; color:var(--green); margin:0 0 4px; font-weight:600}
   .card .lead{font-size:13px; color:var(--gray); margin:0 0 16px}
 
-  label.f{display:block; margin-bottom:14px}
+  label.f{display:block; margin-bottom:16px}
   label.f .t{display:block; font-size:13px; font-weight:600; margin-bottom:3px}
-  label.f .t .req{color:var(--accent); font-size:11px; margin-left:5px}
-  label.f .h{display:block; font-size:11.5px; color:var(--gray); margin-bottom:4px}
-  input[type=text], input[type=email], input[type=date], input[type=number],
-  select, textarea{
+  label.f .t .req{color:var(--accent); font-size:11px; margin-left:6px}
+  label.f .t .opt{color:var(--gray); font-size:11px; margin-left:6px; font-weight:400}
+  label.f .h{display:block; font-size:11.5px; color:var(--gray); margin-bottom:5px}
+  input[type=text], input[type=email], input[type=tel], input[type=number],
+  select{
     width:100%; padding:8px 10px; border:1px solid #C8CFC8; border-radius:4px;
     font-size:14px; font-family:inherit; background:#fff;
   }
-  input:focus, select:focus, textarea:focus{
+  input:focus, select:focus{
     outline:none; border-color:var(--green-mid); box-shadow:0 0 0 2px var(--green-pale);
   }
-  textarea{min-height:76px; resize:vertical}
+  input.bad, select.bad{border-color:var(--accent); background:#FFFAFA}
   .row{display:grid; grid-template-columns:1fr 1fr; gap:14px}
-  .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px}
 
-  .btn{
-    padding:10px 22px; border:none; border-radius:4px; cursor:pointer;
-    font-size:14px; font-family:inherit; font-weight:600;
-  }
+  /* 生年月日　年・月・日を分けて入れる */
+  .ymd{display:grid; grid-template-columns:1.4fr auto 1fr auto 1fr auto; gap:6px;
+       align-items:center}
+  .ymd span{font-size:13px; color:var(--gray)}
+  .ymd input{text-align:center}
+
+  .btn{padding:10px 22px; border:none; border-radius:4px; cursor:pointer;
+       font-size:14px; font-family:inherit; font-weight:600}
   .btn.p{background:var(--green); color:#fff}
   .btn.p:hover{background:#234425}
+  .btn.p:disabled{background:#BBB; cursor:not-allowed}
   .btn.s{background:#fff; color:var(--green); border:1px solid var(--green-mid)}
-  .btn.s:hover{background:var(--green-pale)}
-  .btn:disabled{background:#CCC; cursor:not-allowed}
-  .actions{display:flex; gap:10px; justify-content:flex-end; margin-top:18px}
+  .actions{display:flex; gap:10px; justify-content:flex-end; margin-top:20px}
 
-  table{border-collapse:collapse; width:100%; font-size:13.5px}
-  th{background:var(--green-pale); color:var(--green); padding:7px 9px;
-     text-align:left; font-size:12px; font-weight:600}
-  td{padding:7px 9px; border-bottom:1px solid var(--line)}
-
-  .msg{padding:10px 13px; border-radius:4px; font-size:13px; margin-bottom:14px}
+  .msg{padding:11px 14px; border-radius:4px; font-size:13px; margin-bottom:16px}
   .msg.ok{background:var(--green-pale); border:1px solid var(--green-mid); color:var(--green)}
-  .msg.warn{background:#FFF8E6; border:1px solid #C9A227; color:#7A6114}
   .msg.err{background:var(--accent-pale); border:1px solid var(--accent); color:var(--accent)}
+  .msg.info{background:#EEF3F9; border:1px solid #3D5A8A; color:#1F3864}
 
-  .forms li{margin-bottom:9px; list-style:none}
-  .forms{padding:0; margin:0}
-  .forms .code{
-    display:inline-block; background:var(--green); color:#fff; font-size:11px;
-    padding:1px 7px; border-radius:3px; margin-right:7px; min-width:30px; text-align:center;
-  }
-  .forms .dl{font-size:12px; color:var(--gray); margin-left:6px}
-  .forms .dl.near{color:var(--accent); font-weight:600}
-  .forms .same{
-    font-size:11px; color:var(--gray); background:var(--pale);
-    padding:1px 6px; border-radius:3px; margin-left:6px;
-  }
-
-  .note{font-size:12px; color:var(--gray); margin-top:8px; line-height:1.7}
   .hl{background:#FFF8E6; padding:2px 5px; border-radius:2px}
-  .drop{border:2px dashed var(--line); border-radius:6px; padding:26px;
-        text-align:center; color:var(--gray); font-size:13px; cursor:pointer;
-        transition:.15s; background:#FAFCFA}
-  .drop:hover{border-color:var(--green-mid); background:var(--green-pale)}
-  .drop.over{border-color:var(--green); background:var(--green-pale);
-             color:var(--green)}
-  .files{margin-top:14px}
-  .files .f{display:flex; align-items:center; gap:10px; padding:8px 11px;
-            border:1px solid var(--line); border-radius:4px; margin-bottom:6px;
-            font-size:13px; background:#fff}
-  .files .f .nm{flex:1; overflow:hidden; text-overflow:ellipsis;
-                white-space:nowrap}
-  .files .f .sz{color:var(--gray); font-size:11.5px; white-space:nowrap}
-  .files .f .st{font-size:11.5px; white-space:nowrap}
-  .files .f.ok .st{color:var(--green-mid)}
-  .files .f.ng{border-color:var(--accent); background:var(--accent-pale)}
-  .files .f.ng .st{color:var(--accent)}
-  .files .f .x{cursor:pointer; color:var(--gray); padding:0 4px}
-  .files .f .x:hover{color:var(--accent)}
+  .note{font-size:12px; color:var(--gray); margin-top:10px; line-height:1.75}
+  .err-line{color:var(--accent); font-size:12px; margin-top:3px}
+  .apps{font-size:13px; color:var(--gray); margin-top:6px}
+  .apps li{margin-bottom:3px}
   .devnote{
     margin-top:22px; padding:11px 13px; background:#fff;
     border:1px dashed var(--line); border-radius:4px;
     font-size:11.5px; color:var(--gray); line-height:1.8;
   }
   .devnote b{color:var(--green)}
-  @media(max-width:640px){ .row,.row3{grid-template-columns:1fr} }
+  @media(max-width:600px){ .row{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>東京大学演習林　利用申込</h1>
-  <div class="sub" id="hsub">試作　実際の送信は行いません</div>
+  <h1>東京大学演習林</h1>
+  <div class="sub">ご自身の情報の登録</div>
 </header>
 
-<div class="wrap">
-  <div class="steps" id="steps"></div>
-  <div id="view"></div>
-</div>
+<div class="wrap"><div id="view"></div></div>
 
 <script>
 /* ===== schema.js ===== */
@@ -1426,395 +1363,6 @@ var API = (function () {
 
 </script>
 <script>
-/* ===== deadline.js ===== */
-/**
- * deadline.js  締切の計算
- *
- * 2026年8月19日に7施設の公開ページを調べたところ、
- * 締切の決め方が施設ごとに違い、しかも起算の仕方が3種類あった。
- *
- *   前月◯日まで   北海道20・千葉20・生態水文20・樹芸20・田無15
- *   ◯日前まで     秩父20/10/5・富士14/7・北海道10・生態水文10・樹芸10
- *   ◯日以内       生態水文　利用後7日以内
- *
- * さらに、条件によって値が変わる施設がある。
- *
- *   秩父　利用申込書
- *     1回目          利用希望日の20日前まで（継続課題は10日前）
- *     2回目以降      教職員の対応あり、または宿泊あり  10日前まで
- *                    どちらもなし                      5日前まで
- *
- *   生態水文・樹芸
- *     3か月前より早い申込は受け付けない（下限がある）
- *
- * ★これを単一の数値の列で持つと破綻する。
- *   締切を「基準・方式・値・条件」に分けて持ち、計算はこの1ファイルに集める。
- *   画面にも、他のAPIにも、締切の分岐を書かないこと。
- */
-
-var Deadline = (function () {
-
-  function toDate(s) {
-    return (s instanceof Date) ? new Date(s) : new Date(String(s).replace(/-/g, '/'));
-  }
-
-  function iso(d) {
-    return d.getFullYear() + '-' +
-           ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
-           ('0' + d.getDate()).slice(-2);
-  }
-
-  function addDays(d, n) {
-    var x = new Date(d);
-    x.setDate(x.getDate() + n);
-    return x;
-  }
-
-  /** その日付の前月の◯日 */
-  function prevMonthDay(d, day) {
-    var x = new Date(d.getFullYear(), d.getMonth() - 1, day);
-    // 前月に存在しない日（2月30日など）は、その月の末日に寄せる
-    var lastOfPrev = new Date(d.getFullYear(), d.getMonth(), 0).getDate();
-    if (day > lastOfPrev) x = new Date(d.getFullYear(), d.getMonth() - 1, lastOfPrev);
-    return x;
-  }
-
-  /**
-   * 施設ごとの、条件による分岐
-   *
-   * ここだけが「施設名を知っている」場所。
-   * 公開ページに書かれていない分岐は、9月のヒアリングで確定する。
-   */
-  var SPECIAL = {
-
-    // 秩父演習林　利用申込書
-    'CHC:利用申込書': function (ctx) {
-      if (ctx.is_first_of_year) {
-        return { days: ctx.is_continuing ? 10 : 20,
-                 why: ctx.is_continuing ? '年度の1回目・継続課題' : '年度の1回目・新規課題' };
-      }
-      if (ctx.has_staff_support || ctx.has_lodging) {
-        return { days: 10, why: '2回目以降・教職員の対応または宿泊あり' };
-      }
-      return { days: 5, why: '2回目以降・教職員の対応も宿泊もなし' };
-    },
-
-    // 秩父演習林　研究教育計画書
-    'CHC:研究教育計画書': function (ctx) {
-      return { days: ctx.is_continuing ? 10 : 20,
-               why: ctx.is_continuing ? '継続課題' : '新規課題' };
-    }
-  };
-
-  /**
-   * 締切の日を計算する
-   *
-   * @param {Object} form  M6 様式定義の1行
-   * @param {Object} ctx   {
-   *     use_date          利用日（または年度の初回利用日）
-   *     is_first_of_year  その年度の1回目か
-   *     is_continuing     継続課題か
-   *     has_lodging       宿泊があるか
-   *     has_staff_support 教職員の対応があるか
-   *     end_date          利用終了日（利用後の提出物で使う）
-   *     publish_date      成果の公表日
-   *   }
-   * @return {Object} {
-   *     date       締切の日（'2026-08-10'）。決められないときは null
-   *     label      画面に出す文言
-   *     why        なぜその日になるか
-   *     earliest   受付開始日。下限のない様式では null
-   *     unknown    公開情報に記載がないとき true
-   *   }
-   */
-  function calc(form, ctx) {
-    ctx = ctx || {};
-
-    var key = form.forest_id + ':' + form.name;
-    var sp = SPECIAL[key];
-    var days = form.dl_value;
-    var why = '';
-
-    if (sp) {
-      var r = sp(ctx);
-      days = r.days;
-      why = r.why;
-    }
-
-    var base = null;
-    if (form.dl_base === '利用終了日' && ctx.end_date) base = toDate(ctx.end_date);
-    else if (form.dl_base === '成果の公表日' && ctx.publish_date) base = toDate(ctx.publish_date);
-    else if (ctx.use_date) base = toDate(ctx.use_date);
-
-    if (form.dl_type === '記載なし' || !base) {
-      return { date: null, label: form.dl_note || '記載なし',
-               why: why, earliest: null, unknown: true };
-    }
-
-    var d = null;
-    var label = '';
-
-    if (form.dl_type === '前月◯日まで') {
-      d = prevMonthDay(base, days);
-      label = '前月' + days + '日まで';
-
-    } else if (form.dl_type === '◯日前まで' || form.dl_type === '期間内') {
-      d = addDays(base, -days);
-      label = days + '日前まで';
-
-    } else if (form.dl_type === '◯日以内') {
-      d = addDays(base, days);
-      label = '利用後' + days + '日以内';
-    }
-
-    var earliest = null;
-    if (form.dl_min_days) {
-      earliest = addDays(base, -form.dl_min_days);
-    }
-
-    return {
-      date: d ? iso(d) : null,
-      label: label,
-      why: why,
-      earliest: earliest ? iso(earliest) : null,
-      unknown: false
-    };
-  }
-
-  /**
-   * いま出せる状態かを判定する
-   * @return 'まだ早い' / '受付中' / '締切を過ぎている' / '判定できない'
-   */
-  function judge(form, ctx, todayStr) {
-    var r = calc(form, ctx);
-    if (r.unknown || !r.date) return { state: '判定できない', deadline: r };
-
-    var today = toDate(todayStr || iso(new Date()));
-    if (r.earliest && today < toDate(r.earliest)) {
-      return { state: 'まだ早い', deadline: r };
-    }
-    if (form.dl_type === '◯日以内') {
-      return { state: today <= toDate(r.date) ? '受付中' : '締切を過ぎている', deadline: r };
-    }
-    return { state: today <= toDate(r.date) ? '受付中' : '締切を過ぎている', deadline: r };
-  }
-
-  /**
-   * その申込で必要な様式を、締切つきで並べる
-   * 画面はこれを表示するだけでよい
-   */
-  function scheduleFor(forms, ctx, todayStr) {
-    return forms.map(function (f) {
-      var j = judge(f, ctx, todayStr);
-      return {
-        form_code: f.form_code,
-        name: f.name,
-        doc_type: f.doc_type,
-        stage: f.stage,
-        condition: f.condition,
-        deadline: j.deadline.date,
-        deadline_label: j.deadline.label,
-        why: j.deadline.why,
-        earliest: j.deadline.earliest,
-        state: j.state,
-        url: f.url,
-        file_key: f.file_key,
-        note: f.dl_note
-      };
-    }).sort(function (a, b) {
-      if (!a.deadline) return 1;
-      if (!b.deadline) return -1;
-      return a.deadline < b.deadline ? -1 : 1;
-    });
-  }
-
-  return { calc: calc, judge: judge, scheduleFor: scheduleFor, iso: iso };
-})();
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = Deadline;
-}
-
-</script>
-<script>
-/* ===== upload.js ===== */
-/**
- * upload.js  書類の提出
- *
- * ■ 打ち合わせで確認したこと
- *   ・一つの利用に対して、時間の経過とともに資料が増えていく
- *   　　利用前　図面・スケジュール・宿舎の希望
- *   　　利用中　随時のやり取り
- *   　　利用後　報告書・成果として公表された論文
- *   ・現在は富士が紙のファイルで実現している
- *   ・「その利用に関連づけて保管・閲覧できる必要がある」（打ち合わせでのご要望）
- *
- * ■ 置き場所
- *   ファイルの実体は Google ドライブに置き、記録には場所だけを持つ。
- *   スプレッドシートにファイルそのものは入れない。
- *
- *   ドライブの中の並べ方
- *     2026年度 / 北海道演習林 / 2026-HKD-0001 / A1_研究計画書.pdf
- *
- *   ★申込IDのフォルダにまとめる。これが富士のキャビネットに当たる。
- *
- * ■ 受け付けるもの
- *   PDF・Word・Excel・画像。1件あたり20MBまで。
- *   実行できる形式は受け付けない。
- */
-
-var Upload = (function () {
-
-  var MAX_BYTES = 20 * 1024 * 1024;
-
-  // 受け付ける拡張子と、その説明
-  var ALLOWED = {
-    'pdf':  'PDF',
-    'doc':  'Word', 'docx': 'Word',
-    'xls':  'Excel', 'xlsx': 'Excel',
-    'ppt':  'PowerPoint', 'pptx': 'PowerPoint',
-    'jpg':  '画像', 'jpeg': '画像', 'png': '画像', 'heic': '画像',
-    'csv':  'CSV', 'txt': 'テキスト',
-    'zip':  'ZIP'
-  };
-
-  // 受け付けないもの。名前を変えただけで通らないよう、明示して弾く
-  var BLOCKED = ['exe', 'bat', 'cmd', 'com', 'scr', 'js', 'vbs', 'ps1',
-                 'jar', 'msi', 'dll', 'sh', 'app'];
-
-  function extOf(name) {
-    var m = String(name).toLowerCase().match(/\.([a-z0-9]+)$/);
-    return m ? m[1] : '';
-  }
-
-  /**
-   * 受け付けてよいファイルかを調べる
-   * @return {Object} { ok, error, kind }
-   */
-  function check(file) {
-    var ext = extOf(file.name);
-
-    if (BLOCKED.indexOf(ext) >= 0) {
-      return { ok: false, error: 'この形式のファイルはお預かりできません（.' + ext + '）' };
-    }
-    if (!ALLOWED[ext]) {
-      return { ok: false,
-               error: 'お預かりできる形式は PDF・Word・Excel・画像などです（.' + ext + '）' };
-    }
-    if (file.size > MAX_BYTES) {
-      return { ok: false,
-               error: 'ファイルの大きさが上限を超えています（' +
-                      mb(file.size) + '／上限 ' + mb(MAX_BYTES) + '）' };
-    }
-    if (file.size === 0) {
-      return { ok: false, error: '中身が空のようです' };
-    }
-    return { ok: true, kind: ALLOWED[ext] };
-  }
-
-  function mb(n) {
-    return (n / 1024 / 1024).toFixed(1) + ' MB';
-  }
-
-  /** ファイルを base64 にする。サーバーへ渡すため */
-  function toBase64(file) {
-    return new Promise(function (resolve, reject) {
-      var r = new FileReader();
-      r.onload = function () {
-        var s = String(r.result);
-        resolve(s.slice(s.indexOf(',') + 1));
-      };
-      r.onerror = function () { reject(new Error('ファイルを読めませんでした')); };
-      r.readAsDataURL(file);
-    });
-  }
-
-  /**
-   * 1件を送る
-   * @param {string} appId
-   * @param {File} file
-   * @param {Object} meta { phase, kind, form_code }
-   */
-  function send(appId, file, meta) {
-    var c = check(file);
-    if (!c.ok) return Promise.reject(new Error(c.error));
-
-    return toBase64(file).then(function (b64) {
-      // サーバーにつながっているときは、実体をドライブへ送る
-      if (typeof RemoteAdapter !== 'undefined' &&
-          (typeof google !== 'undefined' || RemoteAdapter.endpoint)) {
-        return callServer(appId, file, b64, meta);
-      }
-      // つながっていないときは、記録だけを残す（試作の動きを見るため）
-      var docId = API.attachFile(appId, {
-        phase: (meta && meta.phase) || '利用前',
-        kind: (meta && meta.kind) || '提出書類',
-        form_code: (meta && meta.form_code) || '',
-        file_name: file.name,
-        file_id: 'local:' + Date.now(),
-        submitted_at: new Date().toISOString().slice(0, 10),
-        submitted_by: ''
-      });
-      return { doc_id: docId, file_name: file.name, local: true };
-    });
-  }
-
-  function callServer(appId, file, b64, meta) {
-    return new Promise(function (resolve, reject) {
-      var args = [appId, file.name, file.type || 'application/octet-stream', b64];
-      if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run
-          .withSuccessHandler(resolve)
-          .withFailureHandler(reject)
-          .rpc('uploadFile', JSON.stringify(args));
-      } else {
-        fetch(RemoteAdapter.endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fn: 'uploadFile', args: args })
-        }).then(function (r) { return r.json(); })
-          .then(function (j) { j.ok ? resolve(j.result) : reject(new Error(j.error)); })
-          .catch(reject);
-      }
-    });
-  }
-
-  /** 複数まとめて送る。1件ずつ順に処理し、途中で失敗しても続ける */
-  function sendAll(appId, files, meta, onEach) {
-    var list = [].slice.call(files);
-    var results = [];
-
-    return list.reduce(function (chain, f) {
-      return chain.then(function () {
-        return send(appId, f, meta)
-          .then(function (r) {
-            results.push({ ok: true, name: f.name, result: r });
-            if (onEach) onEach({ ok: true, name: f.name, result: r });
-          })
-          .catch(function (e) {
-            results.push({ ok: false, name: f.name, error: e.message });
-            if (onEach) onEach({ ok: false, name: f.name, error: e.message });
-          });
-      });
-    }, Promise.resolve()).then(function () { return results; });
-  }
-
-  return {
-    check: check,
-    send: send,
-    sendAll: sendAll,
-    mb: mb,
-    MAX_BYTES: MAX_BYTES,
-    ALLOWED: ALLOWED
-  };
-})();
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = Upload;
-}
-
-</script>
-<script>
 /* ===== seed_public.js ===== */
 /**
  * seed_public.js  公開用のサンプルデータ
@@ -2651,30 +2199,24 @@ var FORMS_SEED = [
 </script>
 <script>
 /* ------------------------------------------------------------------
-   利用者側の画面
+   参加者ご本人が、ご自身の情報を登録する画面
 
-   ★職員側と同じ API 層を使っている。データも共通。
-     違うのは、どの関数を呼ぶかと、何を見せるかだけである。
+   ★この画面だけが、個人情報を書き込める。
+     利用代表者の画面からは、ここで入れた内容は見えない。
+
+   本来は、招待メールに含まれる一度きりのURLから開く。
+   ここでは、その画面を確かめられるようにしてある。
 ------------------------------------------------------------------ */
 
 if (typeof FORMS_SEED !== 'undefined') SEED.M_FORM = FORMS_SEED;
 loadSeed(MemoryAdapter);
 
-var S = {
-  step: 1,
-  forest: 'HKD',
-  draft: {
-    forest_id:'HKD', purpose:'', category:'研究', place:'',
-    date_from:'', date_to:'', is_first_of_year:true, is_continuing:false,
-    has_lodging:false, has_staff_support:false,
-    uav:false, chemicals:false, animals:false, data_use:false, specimen:false
-  },
-  invites: [],
-  appId: null,
-  me: null            // 参加者として登録する場面で使う
-};
+// 招待された方として振る舞う。本来はURLのトークンから特定する
+var UID = (new URLSearchParams(location.search)).get('u') || 'U0002';
 
-var STEPS = ['利用の内容', '参加者', '提出する書類', '確認'];
+var F = {};      // 入力中の内容
+var ERR = {};    // 項目ごとのエラー
+var DONE = false;
 
 function $(id){ return document.getElementById(id); }
 function esc(s){
@@ -2683,461 +2225,306 @@ function esc(s){
   });
 }
 
-function renderSteps(){
-  $('steps').innerHTML = STEPS.map(function(t,i){
-    var n = i+1;
-    var cls = S.step===n ? 'on' : (S.step>n ? 'done' : '');
-    return '<div class="'+cls+'"><span class="n">'+n+'</span>'+t+'</div>';
-  }).join('');
+// ------------------------------------------------ 入力の検査
+
+/**
+ * 電話番号を、ハイフンありの形にそろえる
+ * ★入れ方は人によって違う。保存する形は1つに決めておく
+ */
+function normalizeTel(v){
+  // 全角の数字を半角にしてから、数字以外を落とす
+  // ★順序が逆だと、全角のまま数字以外として消えてしまう
+  var d = String(v||'')
+            .replace(/[０-９]/g, function(c){
+              return '0123456789'['０１２３４５６７８９'.indexOf(c)]; })
+            .replace(/[^\d]/g,'');
+  if(!d) return '';
+  if(d.length === 11) return d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);      // 携帯
+  if(d.length === 10){
+    if(d.slice(0,2) === '03' || d.slice(0,2) === '06')                           // 東京・大阪
+      return d.slice(0,2)+'-'+d.slice(2,6)+'-'+d.slice(6);
+    return d.slice(0,3)+'-'+d.slice(3,6)+'-'+d.slice(6);
+  }
+  return v;
+}
+
+function validTel(v){
+  var d = String(v||'')
+            .replace(/[０-９]/g, function(c){
+              return '0123456789'['０１２３４５６７８９'.indexOf(c)]; })
+            .replace(/[^\d]/g,'');
+  return d.length >= 10 && d.length <= 11;
+}
+
+function buildBirth(){
+  if(!F.by || !F.bm || !F.bd) return '';
+  var y = parseInt(F.by,10), m = parseInt(F.bm,10), d = parseInt(F.bd,10);
+  if(!y || !m || !d) return '';
+  return y + '-' + ('0'+m).slice(-2) + '-' + ('0'+d).slice(-2);
+}
+
+function validBirth(){
+  if(!F.by || !F.bm || !F.bd) return '生年月日をご入力ください';
+  var y = +F.by, m = +F.bm, d = +F.bd;
+  var now = new Date().getFullYear();
+  if(y < 1900 || y > now) return '西暦をご確認ください';
+  if(m < 1 || m > 12) return '月をご確認ください';
+  var last = new Date(y, m, 0).getDate();
+  if(d < 1 || d > last) return y + '年' + m + '月は' + last + '日までです';
+  return '';
+}
+
+/** 必須の項目。すべて埋まらないと登録できない */
+var REQUIRED = [
+  ['name',        '氏名'],
+  ['name_kana',   'ふりがな'],
+  ['org',         'ご所属'],
+  ['org_type',    '所属の区分'],
+  ['status_type', '身分'],
+  ['gender',      '性別'],
+  ['birth',       '生年月日'],
+  ['nationality', '国籍・出身国'],
+  ['emergency',   '緊急連絡先']
+];
+
+function validate(){
+  ERR = {};
+  REQUIRED.forEach(function(r){
+    if(r[0] === 'birth'){
+      var e = validBirth();
+      if(e) ERR.birth = e;
+      return;
+    }
+    if(!F[r[0]]) ERR[r[0]] = r[1] + 'をご入力ください';
+  });
+  if(F.emergency && !validTel(F.emergency)){
+    ERR.emergency = '電話番号の桁数をご確認ください';
+  }
+  if(F.name_kana && !/^[ぁ-んー\s　]+$/.test(F.name_kana)){
+    ERR.name_kana = 'ひらがなでご入力ください';
+  }
+  return Object.keys(ERR).length === 0;
+}
+
+// ------------------------------------------------ 画面
+
+function init(){
+  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
+  F = {
+    name: u.name || '', name_kana: u.name_kana || '',
+    org: u.org || '', org_type: u.org_type || '',
+    status_type: u.status_type || '', gender: u.gender || '',
+    nationality: u.nationality || '日本',
+    allergy: u.allergy || '', emergency: u.emergency || '',
+    by:'', bm:'', bd:''
+  };
+  if(u.birth_date){
+    var p = String(u.birth_date).split('-');
+    if(p.length === 3){ F.by = +p[0]; F.bm = +p[1]; F.bd = +p[2]; }
+  }
+  render();
+}
+
+function set(k, v){ F[k] = v; if(ERR[k]) { delete ERR[k]; render(); } }
+
+function field(key, label, opts){
+  opts = opts || {};
+  var e = ERR[key];
+  return '<label class="f"><span class="t">'+esc(label)+
+    (opts.optional ? '<span class="opt">任意</span>'
+                   : '<span class="req">必須</span>')+'</span>'+
+    (opts.help ? '<span class="h">'+opts.help+'</span>' : '')+
+    '<input type="'+(opts.type||'text')+'" value="'+esc(F[key]||'')+'" '+
+      (opts.placeholder ? 'placeholder="'+esc(opts.placeholder)+'" ' : '')+
+      (e ? 'class="bad" ' : '')+
+      'oninput="F.'+key+'=this.value" '+
+      'onblur="set(\''+key+'\',this.value)"></label>'.replace('</label>',
+      (e ? '<div class="err-line">'+esc(e)+'</div>' : '')+'</label>');
+}
+
+function selectField(key, label, options, opts){
+  opts = opts || {};
+  var e = ERR[key];
+  return '<label class="f"><span class="t">'+esc(label)+
+    (opts.optional ? '<span class="opt">任意</span>'
+                   : '<span class="req">必須</span>')+'</span>'+
+    (opts.help ? '<span class="h">'+opts.help+'</span>' : '')+
+    '<select onchange="set(\''+key+'\',this.value)"'+(e?' class="bad"':'')+'>'+
+      '<option value="">選んでください</option>'+
+      options.map(function(o){
+        return '<option'+(F[key]===o?' selected':'')+'>'+esc(o)+'</option>';
+      }).join('')+
+    '</select>'+
+    (e ? '<div class="err-line">'+esc(e)+'</div>' : '')+
+  '</label>';
 }
 
 function render(){
-  renderSteps();
-  ({1:step1, 2:step2, 3:step3, 4:step4, 5:done, 9:profile})[S.step]();
-}
+  if(DONE) return renderDone();
 
-// ============================================ 1　利用の内容
-function step1(){
-  var forests = API.getMasters().forests;
-  var d = S.draft;
-  $('view').innerHTML =
-  '<div class="card">'+
-    '<h2>どの演習林を、いつ利用されますか</h2>'+
-    '<p class="lead">入力された内容にあわせて、提出が必要な書類と締切をお知らせします。</p>'+
+  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
+  var myApps = MemoryAdapter.readAll('T_PARTICIPANT')
+    .filter(function(p){ return p.user_id === UID; })
+    .map(function(p){ return MemoryAdapter.findByKey('T_APPLICATION', p.app_id); })
+    .filter(function(a){ return a; });
+  var forests = {};
+  API.getMasters().forests.forEach(function(f){ forests[f.forest_id] = f.name; });
 
-    '<label class="f"><span class="t">演習林<span class="req">必須</span></span>'+
-      '<select onchange="S.draft.forest_id=this.value;S.forest=this.value;render()">'+
-        forests.map(function(f){
-          return '<option value="'+f.forest_id+'"'+
-            (d.forest_id===f.forest_id?' selected':'')+'>'+esc(f.name)+'</option>';
-        }).join('')+
-      '</select></label>'+
+  var eb = ERR.birth;
 
-    '<div class="row">'+
-      '<label class="f"><span class="t">利用開始日<span class="req">必須</span></span>'+
-        '<input type="date" value="'+esc(d.date_from)+'" '+
-        'onchange="S.draft.date_from=this.value;if(!S.draft.date_to)S.draft.date_to=this.value;render()"></label>'+
-      '<label class="f"><span class="t">利用終了日<span class="req">必須</span></span>'+
-        '<input type="date" value="'+esc(d.date_to)+'" '+
-        'onchange="S.draft.date_to=this.value;render()"></label>'+
-    '</div>'+
-
-    '<label class="f"><span class="t">区分<span class="req">必須</span></span>'+
-      '<select onchange="S.draft.category=this.value;render()">'+
-        OPTIONS.USE_CATEGORY.map(function(c){
-          return '<option'+(d.category===c?' selected':'')+'>'+c+'</option>';
-        }).join('')+
-      '</select></label>'+
-
-    '<label class="f"><span class="t">利用目的<span class="req">必須</span></span>'+
-      '<span class="h">研究課題名や実習名など。年報にそのまま掲載されます</span>'+
-      '<textarea onchange="S.draft.purpose=this.value">'+esc(d.purpose)+'</textarea></label>'+
-
-    '<label class="f"><span class="t">利用場所</span>'+
-      '<input type="text" value="'+esc(d.place)+'" placeholder="林内の調査地など" '+
-      'onchange="S.draft.place=this.value"></label>'+
-  '</div>'+
-
-  '<div class="card">'+
-    '<h2>あてはまるものを選んでください</h2>'+
-    '<p class="lead">選んだ内容によって、必要な書類と締切が変わります。</p>'+
-    [['is_first_of_year','今年度はじめての利用です'],
-     ['is_continuing','昨年度から続いている課題です'],
-     ['has_lodging','宿泊します'],
-     ['has_staff_support','演習林の職員に案内や送迎をお願いします'],
-     ['uav','ドローンを飛ばします'],
-     ['animals','脊椎動物を対象とした調査を行います'],
-     ['chemicals','化学物質や生物を持ち込みます'],
-     ['data_use','演習林が持つデータを使います'],
-     ['specimen','標本や試料の提供を受けます']].map(function(x){
-      return '<label style="display:block;margin-bottom:7px;font-size:14px;cursor:pointer">'+
-        '<input type="checkbox"'+(d[x[0]]?' checked':'')+' '+
-        'onchange="S.draft.'+x[0]+'=this.checked;render()" style="width:auto;margin-right:8px">'+
-        esc(x[1])+'</label>';
-     }).join('')+
-  '</div>'+
-
-  previewForms()+
-
-  '<div class="actions">'+
-    '<button class="btn p" onclick="goto(2)"'+
-      (d.date_from&&d.date_to&&d.purpose?'':' disabled')+'>次へ　参加者の登録</button>'+
-  '</div>'+
-  devNote('getMasters( ) で演習林と様式を取得し、Deadline.scheduleFor( ) で締切を計算している');
-}
-
-/** 入力にあわせて、必要な書類と締切をその場で出す */
-function previewForms(){
-  var d = S.draft;
-  if(!d.date_from) return '';
-  var forms = API.getMasters(d.forest_id).forms;
-
-  var need = forms.filter(function(f){
-    var c = f.condition || '';
-    if(/ドローン|無人航空機/.test(c) && !d.uav) return false;
-    if(/脊椎動物|野生動物/.test(c) && !d.animals) return false;
-    if(/化学物質|持ち込み|持込/.test(c) && !d.chemicals) return false;
-    if(/データ/.test(c) && !d.data_use) return false;
-    if(/標本|試料/.test(c) && !d.specimen) return false;
-    if(/宿泊/.test(c) && !d.has_lodging) return false;
-    if(f.doc_type==='参考資料') return false;
-    return true;
-  });
-
-  var sched = Deadline.scheduleFor(need, {
-    use_date: d.date_from, end_date: d.date_to,
-    is_first_of_year: d.is_first_of_year, is_continuing: d.is_continuing,
-    has_lodging: d.has_lodging, has_staff_support: d.has_staff_support
-  }, Deadline.iso(new Date()));
-
-  // 同じファイルにまとまっている書類をたたむ
-  var byFile = {};
-  sched.forEach(function(s){
-    var k = s.file_key || ('_' + s.form_code);
-    if(!byFile[k]) byFile[k] = [];
-    byFile[k].push(s);
-  });
-
-  var late = sched.filter(function(s){ return s.state==='締切を過ぎている'; });
-  var early = sched.filter(function(s){ return s.state==='まだ早い'; });
-
-  return '<div class="card">'+
-    '<h2>提出が必要な書類　'+sched.length+'点</h2>'+
-    '<p class="lead">選ばれた内容から判断しています。</p>'+
-    (late.length ? '<div class="msg err">締切を過ぎている書類が '+late.length+
-      ' 点あります。演習林にご相談ください。</div>' : '')+
-    (early.length ? '<div class="msg warn">'+early.length+
-      ' 点は、まだ受付の期間に入っていません。'+esc(early[0].earliest)+
-      ' 以降にご提出ください。</div>' : '')+
-    '<ul class="forms">'+
-      Object.keys(byFile).map(function(k){
-        var g = byFile[k];
-        var s = g[0];
-        var cls = (s.state==='締切を過ぎている') ? ' near' : '';
-        return '<li>'+
-          '<span class="code">'+esc(s.form_code)+'</span>'+
-          esc(g.map(function(x){return x.name;}).join('・'))+
-          (g.length>1 ? '<span class="same">'+g.length+'点が1つのファイル</span>' : '')+
-          '<span class="dl'+cls+'">'+
-            (s.deadline ? '　'+esc(s.deadline)+' まで（'+esc(s.deadline_label)+'）'
-                        : '　'+esc(s.deadline_label))+
-            (s.why ? '　'+esc(s.why) : '')+
-          '</span>'+
-        '</li>';
-      }).join('')+
-    '</ul>'+
-    '<div class="note">★演習林によって、書類の分かれ方が違います。'+
-      '千葉演習林と秩父演習林では、複数の書類が1つのファイルにまとまっています。<br>'+
-      '★秩父演習林の締切は、年度の何回目か・職員の対応の有無・宿泊の有無で'+
-      '20日前／10日前／5日前に変わります。'+
-    '</div>'+
-  '</div>';
-}
-
-// ============================================ 2　参加者
-function step2(){
-  var rows = S.invites.map(function(p,i){
-    return '<tr>'+
-      '<td><input type="text" value="'+esc(p.name)+'" placeholder="氏名" '+
-        'onchange="S.invites['+i+'].name=this.value"></td>'+
-      '<td><input type="email" value="'+esc(p.email)+'" placeholder="メールアドレス" '+
-        'onchange="S.invites['+i+'].email=this.value"></td>'+
-      '<td style="width:60px"><button class="btn s" style="padding:4px 10px" '+
-        'onclick="S.invites.splice('+i+',1);render()">削除</button></td>'+
-    '</tr>';
-  }).join('');
-
-  $('view').innerHTML =
-  '<div class="card">'+
-    '<h2>ご一緒に来られる方</h2>'+
-    '<p class="lead">お名前とメールアドレスだけご入力ください。</p>'+
-    '<div class="msg ok">'+
-      '<b>ご入力いただくのはこの2つだけです。</b><br>'+
-      '年齢・アレルギー・国籍・緊急連絡先は、ご本人に直接ご入力いただきます。'+
-      '代表者の方がお尋ねになる必要はありません。'+
-    '</div>'+
-    '<table><thead><tr><th>氏名</th><th>メールアドレス</th><th></th></tr></thead>'+
-      '<tbody>'+rows+'</tbody></table>'+
-    '<div style="margin-top:12px">'+
-      '<button class="btn s" onclick="S.invites.push({name:\'\',email:\'\'});render()">'+
-        '＋ 行を追加</button>'+
-    '</div>'+
-    '<div class="note">'+
-      'ご登録いただくと、それぞれの方に入力用のご案内が届きます。<br>'+
-      '一度ご登録いただいた方は、次回以降は確認だけで済みます。'+
-      '7つの演習林で共通ですので、演習林ごとに入力し直す必要はありません。'+
-    '</div>'+
-  '</div>'+
-  '<div class="actions">'+
-    '<button class="btn s" onclick="goto(1)">戻る</button>'+
-    '<button class="btn p" onclick="goto(3)">次へ　書類の確認</button>'+
-  '</div>'+
-  devNote('inviteParticipants( ) を呼ぶ。代表者の画面に個人情報は返らない');
-}
-
-// ============================================ 3　書類
-function step3(){
-  $('view').innerHTML =
-    previewForms()+
-    '<div class="card">'+
-      '<h2>書類の提出</h2>'+
-      '<p class="lead">この画面から提出できます。'+
-        'あとから追加でご提出いただくこともできます。</p>'+
-
-      '<div class="drop" id="drop" '+
-        'onclick="document.getElementById(\'file\').click()">'+
-        'ここにファイルを置くか、クリックして選んでください<br>'+
-        '<span style="font-size:11.5px">'+
-          'PDF・Word・Excel・画像　1件あたり20MBまで</span>'+
-      '</div>'+
-      '<input type="file" id="file" multiple style="display:none" '+
-        'onchange="Files.add(this.files)">'+
-
-      '<div class="files" id="filelist"></div>'+
-
-      '<div class="note">提出された書類は、この申込に紐づけて保管されます。'+
-        '利用が終わった後の報告書や、成果として公表された論文も、'+
-        '同じ場所に追加していただけます。</div>'+
-    '</div>'+
-    '<div class="actions">'+
-      '<button class="btn s" onclick="goto(2)">戻る</button>'+
-      '<button class="btn p" onclick="goto(4)">次へ　内容の確認</button>'+
-    '</div>'+
-    devNote('Upload.check( ) で受け付けてよい形式かを調べ、'+
-            'attachFile( ) で申込に紐づける。実体はドライブに置く');
-
-  Files.render();
-  Files.bindDrop();
-}
-
-/**
- * 選ばれたファイルを覚えておく
- * ★申込が成立する前に選ばれることがあるため、
- *   いったん手元に持ち、申込ができた時点でまとめて送る。
- */
-var Files = (function(){
-  var list = [];
-
-  function add(fileList){
-    [].slice.call(fileList).forEach(function(f){
-      var c = Upload.check(f);
-      list.push({ file:f, name:f.name, size:f.size,
-                  ok:c.ok, error:c.error, kind:c.kind, sent:false });
-    });
-    render();
-  }
-
-  function remove(i){ list.splice(i,1); render(); }
-
-  function render(){
-    var el = document.getElementById('filelist');
-    if(!el) return;
-    if(!list.length){ el.innerHTML = ''; return; }
-
-    el.innerHTML = list.map(function(f,i){
-      return '<div class="f '+(f.ok ? (f.sent?'ok':'') : 'ng')+'">'+
-        '<span class="nm">'+esc(f.name)+'</span>'+
-        '<span class="sz">'+Upload.mb(f.size)+'</span>'+
-        '<span class="st">'+
-          (f.ok ? (f.sent ? '送信済み' : (f.kind||'')) : esc(f.error))+
-        '</span>'+
-        '<span class="x" onclick="Files.remove('+i+')">×</span>'+
-      '</div>';
-    }).join('');
-  }
-
-  function bindDrop(){
-    var d = document.getElementById('drop');
-    if(!d) return;
-    ['dragenter','dragover'].forEach(function(ev){
-      d.addEventListener(ev, function(e){
-        e.preventDefault(); d.classList.add('over');
-      });
-    });
-    ['dragleave','drop'].forEach(function(ev){
-      d.addEventListener(ev, function(e){
-        e.preventDefault(); d.classList.remove('over');
-      });
-    });
-    d.addEventListener('drop', function(e){
-      if(e.dataTransfer && e.dataTransfer.files) add(e.dataTransfer.files);
-    });
-  }
-
-  /** 申込ができたら、まとめて送る */
-  function flush(appId){
-    var target = list.filter(function(f){ return f.ok && !f.sent; });
-    if(!target.length) return Promise.resolve([]);
-    return Upload.sendAll(appId, target.map(function(f){ return f.file; }),
-                          {phase:'利用前', kind:'提出書類'},
-                          function(r){
-                            list.forEach(function(f){
-                              if(f.name === r.name) f.sent = r.ok;
-                            });
-                            render();
-                          });
-  }
-
-  function count(){ return list.filter(function(f){ return f.ok; }).length; }
-
-  return { add:add, remove:remove, render:render, bindDrop:bindDrop,
-           flush:flush, count:count, list:function(){ return list; } };
-})();
-
-// ============================================ 4　確認
-function step4(){
-  var d = S.draft;
-  var f = API.getMasters().forests.filter(function(x){
-    return x.forest_id===d.forest_id; })[0];
-  $('view').innerHTML =
-  '<div class="card">'+
-    '<h2>この内容でよろしいですか</h2>'+
-    '<table><tbody>'+
-      [['演習林', f.name],
-       ['期間', d.date_from+' 〜 '+d.date_to],
-       ['区分', d.category],
-       ['利用目的', d.purpose],
-       ['利用場所', d.place || '（未記入）'],
-       ['ご一緒に来られる方', S.invites.length ?
-          S.invites.map(function(p){return p.name;}).join('、')+
-          '（'+S.invites.length+'名）' : 'なし'],
-       ['宿泊', d.has_lodging ? 'あり' : 'なし'],
-       ['提出する書類', Files.count() ? Files.count()+' 件' : 'なし']
-      ].map(function(r){
-        return '<tr><th style="width:170px">'+esc(r[0])+'</th><td>'+esc(r[1])+'</td></tr>';
-      }).join('')+
-    '</tbody></table>'+
-    (f.issues_permit === false ?
-      '<div class="note">この演習林では、許可証の発行は行っておりません。</div>' : '')+
-  '</div>'+
-  '<div class="actions">'+
-    '<button class="btn s" onclick="goto(3)">戻る</button>'+
-    '<button class="btn p" onclick="submitApp()">この内容で申し込む</button>'+
-  '</div>'+
-  devNote('saveApplication( ) → inviteParticipants( ) の順に呼ぶ');
-}
-
-function submitApp(){
-  var d = S.draft;
-  // 代表者は仮に U0001。実際はログインしている方になる
-  var appId = API.saveApplication({
-    forest_id: d.forest_id,
-    rep_user_id: 'U0001',
-    rep_org: (MemoryAdapter.findByKey('M_USER','U0001')||{}).org || '',
-    org_type: (MemoryAdapter.findByKey('M_USER','U0001')||{}).org_type || '',
-    purpose: d.purpose, category: d.category, place: d.place,
-    date_from: d.date_from, date_to: d.date_to
-  });
-  var valid = S.invites.filter(function(p){ return p.name && p.email; });
-  if(valid.length) API.inviteParticipants(appId, valid);
-  S.appId = appId;
-
-  // 選ばれていた書類を、この申込に紐づけて送る
-  Files.flush(appId).then(function(){
-    S.step = 5;
-    render();
-  });
-}
-
-// ============================================ 5　完了
-function done(){
-  var a = API.getApplication(S.appId);
-  var parts = API.getParticipants(S.appId, '代表者');
-  $('view').innerHTML =
-  '<div class="card">'+
-    '<h2>お申し込みを受け付けました</h2>'+
-    '<div class="msg ok">受付番号　<b>'+esc(S.appId)+'</b><br>'+
-      'ご登録のメールアドレスに、受付のご連絡をお送りしました。</div>'+
-    (parts.length>1 ?
-      '<h3 style="font-size:14px;margin:18px 0 6px">ご一緒に来られる方の登録状況</h3>'+
-      '<table><thead><tr><th>お名前</th><th>状況</th></tr></thead><tbody>'+
-      parts.filter(function(p){return p.role!=='代表者';}).map(function(p){
-        return '<tr><td>'+esc(p.name)+'</td><td>'+
-          (p.reg_status==='登録済' ? '登録済み'
-            : '<span style="color:var(--accent)">ご案内をお送りしました</span>')+
-          '</td></tr>';
-      }).join('')+'</tbody></table>'+
-      '<div class="note">全員のご登録が済みますと、お申し込みが確定します。'+
-        'まだお済みでない方には、こちらから改めてご案内をお送りします。</div>'
-      : '')+
-    '<div class="actions">'+
-      '<button class="btn s" onclick="S.step=9;render()">'+
-        '参加者の入力画面を見る</button>'+
-      '<button class="btn p" onclick="location.reload()">最初に戻る</button>'+
-    '</div>'+
-  '</div>'+
-  devNote('この時点で、職員側の画面にこの申込が現れる。データは共通のため');
-}
-
-// ============================================ 9　参加者本人の入力
-function profile(){
-  var uid = 'U0002';
-  var u = MemoryAdapter.findByKey('M_USER', uid) || {};
   $('view').innerHTML =
   '<div class="card">'+
     '<h2>ご自身の情報をご登録ください</h2>'+
-    '<p class="lead">'+esc(u.name||'')+' 様　'+
-      '演習林の利用にあたり、以下の情報が必要です。</p>'+
+    '<p class="lead">'+esc(u.name || '')+' 様</p>'+
+
+    (myApps.length ?
+      '<div class="msg info">'+
+        'このお申し込みにご一緒される方として、お名前が登録されています。'+
+        '<ul class="apps">'+myApps.slice(0,3).map(function(a){
+          return '<li>'+esc(forests[a.forest_id]||a.forest_id)+'　'+
+            esc(a.date_from)+' 〜 '+esc(a.date_to)+'　'+esc(a.purpose)+'</li>';
+        }).join('')+'</ul>'+
+      '</div>' : '')+
+
     '<div class="msg ok">'+
-      'ご入力いただいた内容は、演習林の担当者のみが確認します。<br>'+
+      'ご入力いただいた内容は、演習林の担当者のみが確認いたします。<br>'+
       '<b>利用代表者の方には表示されません。</b>'+
     '</div>'+
 
+    (Object.keys(ERR).length ?
+      '<div class="msg err">ご入力いただいていない項目が '+
+        Object.keys(ERR).length+' 点あります。</div>' : '')+
+
     '<div class="row">'+
-      '<label class="f"><span class="t">お名前<span class="req">必須</span></span>'+
-        '<input type="text" value="'+esc(u.name||'')+'"></label>'+
-      '<label class="f"><span class="t">ふりがな</span>'+
-        '<input type="text" value="'+esc(u.name_kana||'')+'"></label>'+
+      field('name', 'お名前')+
+      field('name_kana', 'ふりがな', {help:'ひらがなでご入力ください',
+                                      placeholder:'やまだ たろう'})+
     '</div>'+
-    '<label class="f"><span class="t">ご所属<span class="req">必須</span></span>'+
-      '<input type="text" value="'+esc(u.org||'')+'"></label>'+
-    '<div class="row3">'+
-      '<label class="f"><span class="t">身分</span>'+
-        '<select>'+OPTIONS.STATUS_TYPE.map(function(x){
-          return '<option'+(u.status_type===x?' selected':'')+'>'+x+'</option>';
-        }).join('')+'</select></label>'+
-      '<label class="f"><span class="t">性別</span>'+
-        '<select>'+OPTIONS.GENDER.map(function(x){
-          return '<option'+(u.gender===x?' selected':'')+'>'+x+'</option>';
-        }).join('')+'</select></label>'+
-      '<label class="f"><span class="t">生年月日</span>'+
-        '<span class="h">年齢の計算に使います</span>'+
-        '<input type="date" value="'+esc(u.birth_date||'')+'"></label>'+
+
+    field('org', 'ご所属', {placeholder:'東京大学大学院農学生命科学研究科 森林科学専攻'})+
+
+    selectField('org_type', '所属の区分', OPTIONS.ORG_TYPE)+
+
+    '<div class="row">'+
+      selectField('status_type', '身分', OPTIONS.STATUS_TYPE)+
+      selectField('gender', '性別', OPTIONS.GENDER)+
     '</div>'+
-    '<label class="f"><span class="t">食物アレルギー</span>'+
-      '<span class="h">宿泊施設で食事をご用意する際に必要です。'+
-        'ない場合は空欄で構いません</span>'+
-      '<input type="text" value="'+esc(u.allergy||'')+'"></label>'+
+
+    // 生年月日　年・月・日を分けて数字で入れる
+    '<label class="f"><span class="t">生年月日<span class="req">必須</span></span>'+
+      '<span class="h">利用日の時点での年齢の計算に使います。'+
+        '毎回おうかがいしなくて済むよう、こちらで計算いたします</span>'+
+      '<div class="ymd">'+
+        '<input type="number" inputmode="numeric" placeholder="1990" '+
+          'value="'+esc(F.by||'')+'" min="1900" max="2100" '+
+          (eb?'class="bad" ':'')+'oninput="F.by=this.value" '+
+          'onblur="set(\'by\',this.value)"><span>年</span>'+
+        '<input type="number" inputmode="numeric" placeholder="1" '+
+          'value="'+esc(F.bm||'')+'" min="1" max="12" '+
+          (eb?'class="bad" ':'')+'oninput="F.bm=this.value" '+
+          'onblur="set(\'bm\',this.value)"><span>月</span>'+
+        '<input type="number" inputmode="numeric" placeholder="1" '+
+          'value="'+esc(F.bd||'')+'" min="1" max="31" '+
+          (eb?'class="bad" ':'')+'oninput="F.bd=this.value" '+
+          'onblur="set(\'bd\',this.value)"><span>日</span>'+
+      '</div>'+
+      (eb ? '<div class="err-line">'+esc(eb)+'</div>' : '')+
+    '</label>'+
+
+    field('nationality', '国籍・出身国',
+      {help:'年間の利用実績の集計に使います', placeholder:'日本'})+
+
+    field('allergy', '食物アレルギー', {optional:true,
+      help:'宿泊施設で食事をご用意する際に必要です。ない場合は空欄で構いません',
+      placeholder:'そば、甲殻類 など'})+
+
     '<label class="f"><span class="t">緊急連絡先<span class="req">必須</span></span>'+
-      '<span class="h">'+
-        '<span class="hl">通常はどなたにも表示されません。'+
-        '事故などの緊急時にのみ、演習林の担当者が確認します。'+
+      '<span class="h"><span class="hl">通常はどなたにも表示されません。'+
+        '事故などの緊急時にのみ、演習林の担当者が確認いたします。'+
         'その際は、いつ誰が確認したかの記録が残ります</span></span>'+
-      '<input type="text" value="'+esc(u.emergency||'')+'" '+
-        'placeholder="ご家族などのお電話番号"></label>'+
+      '<input type="tel" inputmode="tel" value="'+esc(F.emergency||'')+'" '+
+        'placeholder="090-1234-5678" '+(ERR.emergency?'class="bad" ':'')+
+        'oninput="F.emergency=this.value" '+
+        'onblur="F.emergency=normalizeTel(this.value);set(\'emergency\',F.emergency)">'+
+      (ERR.emergency ? '<div class="err-line">'+esc(ERR.emergency)+'</div>' : '')+
+      '<div class="note">ハイフンはあってもなくても構いません。'+
+        'こちらで同じ形にそろえて保存いたします</div>'+
+    '</label>'+
 
     '<div class="actions">'+
-      '<button class="btn p" onclick="alert(\'登録しました。\\n\\n'+
-        '次回以降のお申し込みでは、この内容を確認していただくだけで済みます。\');'+
-        'S.step=5;render()">登録する</button>'+
+      '<button class="btn p" onclick="submit()">登録する</button>'+
     '</div>'+
+
     '<div class="note">'+
-      '一度ご登録いただくと、7つの演習林すべてで共通してお使いいただけます。<br>'+
+      '一度ご登録いただきますと、7つの演習林すべてで共通してお使いいただけます。<br>'+
+      '次回以降のお申し込みでは、内容のご確認だけで済みます。<br>'+
       'ご登録内容は、いつでもご自身で変更していただけます。'+
     '</div>'+
   '</div>'+
   devNote('saveMyProfile( ) を呼ぶ。この画面だけが個人情報を書き込める');
 }
 
-function goto(n){ S.step = n; window.scrollTo(0,0); render(); }
+function submit(){
+  if(!validate()){ render(); window.scrollTo(0,0); return; }
+  API.saveMyProfile(UID, {
+    name: F.name, name_kana: F.name_kana, org: F.org,
+    org_type: F.org_type, status_type: F.status_type, gender: F.gender,
+    birth_date: buildBirth(), nationality: F.nationality,
+    allergy: F.allergy, emergency: normalizeTel(F.emergency)
+  });
+  DONE = true;
+  render();
+  window.scrollTo(0,0);
+}
+
+function renderDone(){
+  var u = MemoryAdapter.findByKey('M_USER', UID) || {};
+  var age = (function(){
+    var b = new Date(u.birth_date), n = new Date();
+    var a = n.getFullYear()-b.getFullYear();
+    var m = n.getMonth()-b.getMonth();
+    if(m<0 || (m===0 && n.getDate()<b.getDate())) a--;
+    return a;
+  })();
+  $('view').innerHTML =
+  '<div class="card">'+
+    '<h2>ご登録ありがとうございました</h2>'+
+    '<div class="msg ok">ご登録が完了しました。'+
+      '利用代表者の方には、お名前とご登録の状況のみが表示されます。</div>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:13.5px">'+
+      [['お名前', u.name+'（'+u.name_kana+'）'],
+       ['ご所属', u.org],
+       ['身分', u.status_type],
+       ['生年月日', u.birth_date + '　現在 '+age+'歳'],
+       ['国籍・出身国', u.nationality],
+       ['食物アレルギー', u.allergy || 'なし'],
+       ['緊急連絡先', u.emergency]
+      ].map(function(r){
+        return '<tr><th style="text-align:left;padding:6px 9px;width:150px;'+
+          'background:var(--green-pale);color:var(--green);font-size:12px">'+
+          esc(r[0])+'</th><td style="padding:6px 9px;border-bottom:1px solid var(--line)">'+
+          esc(r[1])+'</td></tr>';
+      }).join('')+
+    '</table>'+
+    '<div class="note">'+
+      '★緊急連絡先は、この確認画面以外には表示されません。<br>'+
+      '　演習林の担当者の画面でも伏せられており、'+
+      '開くと「いつ誰が開いたか」が記録されます。'+
+    '</div>'+
+    '<div class="actions">'+
+      '<button class="btn s" onclick="DONE=false;render()">内容を変更する</button>'+
+    '</div>'+
+  '</div>'+
+  devNote('職員の画面では、この方の登録状況が「登録済」に変わっている');
+}
 
 function devNote(t){
   return '<div class="devnote"><b>この画面が呼んでいるもの</b>　'+esc(t)+'<br>'+
-    '職員側の画面と同じ API 層を使っている。データも共通。'+
-    '違うのは、どの関数を呼ぶかと、何を見せるかだけ。</div>';
+    '利用者の画面・職員の画面と同じ API 層を使っている。'+
+    '違うのは、どの関数を呼べるかだけ。</div>';
 }
 
-render();
+init();
 </script>
 </body>
 </html>

@@ -72,6 +72,10 @@
     font-size:11px; color:#fff; white-space:nowrap;
   }
   .warn{color:var(--accent); font-weight:600}
+  th.sortable{cursor:pointer; user-select:none}
+  th.sortable:hover{background:#2C4A7C}
+  th.sortable.on{background:#0F2544}
+  td.empty{text-align:center; color:var(--gray); padding:26px}
 
   /* カレンダー */
   .cal{display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--line);
@@ -143,7 +147,8 @@
   <span class="sub">職員画面　試作</span>
   <select id="forest"></select>
   <span class="spacer"></span>
-  <span class="who" id="who">担当者A（施設担当者）</span>
+  <span class="who" id="who"></span>
+  <button id="logout" class="btn" style="background:#2C4A7C;color:#fff;border-color:#4A6A9C" onclick="doLogout()">ログアウト</button>
 </header>
 
 <nav>
@@ -171,7 +176,10 @@
 <script src="../api/deadline.js"></script>
 <script src="../api/export.js"></script>
 <script src="../api/seed.js"></script>
+<script src="../api/auth.js"></script>
 <script src="../api/forms_seed.js"></script>
+<script src="_login.js"></script>
+<script src="_list.js"></script>
 <script>
 /* ------------------------------------------------------------------
    画面側のコード
@@ -181,7 +189,8 @@
      保存先をスプレッドシートに変えても、このファイルは1行も変わらない。
 ------------------------------------------------------------------ */
 
-var state = { forest:'HKD', tab:'cal', month:'2025-08', staff:'S001' };
+var state = { forest:'HKD', tab:'cal', month:'2025-08', staff:'S001',
+              keyword:'', filterStatus:'', onlyOpen:false };
 
 function $(id){ return document.getElementById(id); }
 function esc(s){
@@ -200,13 +209,40 @@ function fmtDate(s){
 if (typeof FORMS_SEED !== 'undefined') SEED.M_FORM = FORMS_SEED;
 loadSeed(MemoryAdapter);
 
-(function init(){
-  var m = API.getMasters();
-  $('forest').innerHTML = m.forests.map(function(f){
+function boot(){
+  var me = Auth.current();
+  if(!me){
+    LoginView.open('staff', function(){ boot(); });
+    return;
+  }
+
+  // 入った人が見てよい演習林だけを並べる
+  var forests = Auth.visibleForests();
+  if(!forests.length){
+    alert('この画面を見る権限がありません。\n\n' +
+          me.name + '（' + me.role + '）');
+    Auth.signOut();
+    boot();
+    return;
+  }
+
+  $('who').textContent = me.name + '（' + me.role + '）';
+  $('forest').innerHTML = forests.map(function(f){
     return '<option value="'+f.forest_id+'">'+esc(f.name)+'</option>';
   }).join('');
+
+  // 所属する演習林があれば、それを最初に見せる
+  state.forest = (me.forest_id && forests.some(function(f){
+    return f.forest_id === me.forest_id; })) ? me.forest_id : forests[0].forest_id;
+  state.staff = me.id;
   $('forest').value = state.forest;
-  $('forest').onchange = function(){ state.forest = this.value; render(); };
+  $('forest').disabled = (forests.length === 1);
+
+  $('forest').onchange = function(){
+    state.forest = this.value;
+    state._listForest = null;
+    render();
+  };
 
   document.querySelectorAll('nav button').forEach(function(b){
     b.onclick = function(){
@@ -217,12 +253,36 @@ loadSeed(MemoryAdapter);
     };
   });
 
-  // 最新の申込がある月を初期表示にする
+  // 権限で見せないものを外す
+  //   本部担当者は集計だけを見る。個別の申込には立ち入らない。
+  if(!Auth.can('個人情報')){
+    document.querySelectorAll('nav button').forEach(function(b){
+      if(['list','person','cal'].indexOf(b.dataset.tab) >= 0){
+        b.style.display = 'none';
+      }
+    });
+    state.tab = 'nenpo';
+    document.querySelectorAll('nav button').forEach(function(x){
+      x.classList.toggle('on', x.dataset.tab === 'nenpo');
+    });
+  }
+
   var apps = API.getApplications({forest_id:state.forest});
   if(apps.length) state.month = apps[0].date_from.slice(0,7);
 
   render();
-})();
+}
+
+function doLogout(){
+  Auth.signOut();
+  state._listForest = null;
+  ['cal','list','person','rooms','nenpo','audit','detail'].forEach(function(t){
+    var e = $('p-'+t); if(e) e.innerHTML = '';
+  });
+  boot();
+}
+
+boot();
 
 function render(){
   document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('on'); });
@@ -299,53 +359,18 @@ function moveMonth(n){
 
 // ================================================ 申込一覧
 function renderList(){
-  var m = API.getMasters(state.forest);
-  var apps = API.getApplications({
-    forest_id: state.forest,
-    status: state.filterStatus || '',
-    keyword: state.keyword || ''
-  });
-
-  var rows = apps.map(function(a){
-    var full = API.getApplication(a.app_id);
-    return '<tr onclick="openDetail(\''+a.app_id+'\')">'+
-      '<td class="nowrap">'+esc(a.app_id)+'</td>'+
-      '<td class="nowrap">'+fmtDate(a.date_from)+' 〜 '+fmtDate(a.date_to)+'</td>'+
-      '<td class="num">'+full.n_days+'</td>'+
-      '<td>'+esc(a.rep_name)+'</td>'+
-      '<td>'+esc(a.rep_org)+'</td>'+
-      '<td>'+esc(a.purpose).slice(0,42)+'</td>'+
-      '<td class="num">'+full.total_people+'</td>'+
-      '<td><span class="chip" style="background:'+a.status_color+'">'+
-        esc(a.status_label)+'</span></td>'+
-      '<td class="nowrap">'+(full.n_unregistered ?
-        '<span class="warn">未登録 '+full.n_unregistered+'</span>' : '—')+'</td>'+
-    '</tr>';
-  }).join('');
-
-  $('p-list').innerHTML =
-    '<div class="bar">'+
-      '<label>ステータス</label>'+
-      '<select onchange="state.filterStatus=this.value;renderList()">'+
-        '<option value="">すべて</option>'+
-        m.statuses.map(function(s){
-          return '<option value="'+s.code+'"'+
-            (state.filterStatus===s.code?' selected':'')+'>'+esc(s.label)+'</option>';
-        }).join('')+
-      '</select>'+
-      '<label>検索</label>'+
-      '<input type="text" value="'+esc(state.keyword||'')+'" placeholder="代表者・所属・目的" '+
-        'oninput="state.keyword=this.value;renderList()" style="width:210px">'+
-      '<span class="count">'+apps.length+' 件</span>'+
-    '</div>'+
-    (apps.length ?
-      '<table><thead><tr>'+
-        '<th>申込ID</th><th>期間</th><th>日数</th><th>代表者</th><th>所属</th>'+
-        '<th>利用目的</th><th>人数</th><th>ステータス</th><th>個人情報</th>'+
-      '</tr></thead><tbody>'+rows+'</tbody></table>'
-      : '<div class="empty">該当する申込がありません</div>')+
-    devNote('getApplications( ) で絞り込み、getApplication( ) で明細を取っている');
+  // 表の実装は _list.js にある。
+  // 演習林を切り替えたときは枠から作り直し、それ以外は中身だけ描き直す。
+  if(state._listForest !== state.forest){
+    state._listForest = state.forest;
+    ListView.build();
+  } else if(!document.getElementById('list-body')){
+    ListView.build();
+  } else {
+    ListView.refresh();
+  }
 }
+
 
 // ================================================ 代表者ごと
 function renderPerson(){
@@ -628,8 +653,12 @@ function changeStatus(appId, to){
 
 function openEmergency(userId){
   var r = API.openEmergencyContact(userId, state.staff, '職員画面から開いた');
-  if(r) alert(r.name + ' さんの緊急連絡先\n\n' + r.emergency +
-              '\n\n※この操作は記録に残りました');
+  if(!r || !r.ok){
+    alert('表示できませんでした\n\n' + ((r && r.error) || '原因が分かりません'));
+    return;
+  }
+  alert(r.name + ' さんの緊急連絡先\n\n' + r.emergency +
+        '\n\n※この操作は記録に残りました');
   renderDetail();
 }
 

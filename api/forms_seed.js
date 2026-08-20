@@ -12,7 +12,7 @@
 var FORMS_SEED = [
  {
   "forest_id": "CHB",
-  "form_code": "F01",
+  "form_code": "1",
   "name": "教育研究計画書",
   "doc_type": "計画書",
   "stage": "事前",
@@ -30,7 +30,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "CHB",
-  "form_code": "F02",
+  "form_code": "2",
   "name": "データ利用申請書",
   "doc_type": "データ利用",
   "stage": "事前",
@@ -48,7 +48,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "CHB",
-  "form_code": "-1",
+  "form_code": "3",
   "name": "利用申込書",
   "doc_type": "申込書",
   "stage": "利用の都度",
@@ -66,7 +66,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "CHB",
-  "form_code": "-2",
+  "form_code": "4",
   "name": "利用時届出書",
   "doc_type": "届出",
   "stage": "利用の都度",
@@ -84,7 +84,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "CHB",
-  "form_code": "-3",
+  "form_code": "5",
   "name": "緊急連絡先名簿",
   "doc_type": "緊急連絡先",
   "stage": "利用の都度",
@@ -102,7 +102,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "CHB",
-  "form_code": "F03",
+  "form_code": "6",
   "name": "安全チェックリスト（参考）",
   "doc_type": "参考資料",
   "stage": "記載なし",
@@ -282,7 +282,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "HKD",
-  "form_code": "F01",
+  "form_code": "1",
   "name": "成果の別刷・要旨",
   "doc_type": "成果",
   "stage": "利用後",
@@ -300,7 +300,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "HKD",
-  "form_code": "F02",
+  "form_code": "2",
   "name": "利用報告（メール）",
   "doc_type": "報告",
   "stage": "利用後",
@@ -318,7 +318,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "CHC",
-  "form_code": "F01",
+  "form_code": "1",
   "name": "研究教育計画書",
   "doc_type": "計画書",
   "stage": "事前",
@@ -336,7 +336,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "CHC",
-  "form_code": "F02",
+  "form_code": "2",
   "name": "利用申込書",
   "doc_type": "申込書",
   "stage": "利用の都度",
@@ -354,7 +354,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "CHC",
-  "form_code": "F03",
+  "form_code": "3",
   "name": "利用者名簿",
   "doc_type": "名簿",
   "stage": "利用の都度",
@@ -372,7 +372,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "CHC",
-  "form_code": "F04",
+  "form_code": "4",
   "name": "宿泊利用申込書",
   "doc_type": "宿泊申込",
   "stage": "利用の都度",
@@ -390,7 +390,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "CHC",
-  "form_code": "F05",
+  "form_code": "5",
   "name": "無人航空機（UAV）飛行計画書",
   "doc_type": "計画書",
   "stage": "記載なし",
@@ -408,7 +408,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "TNS",
-  "form_code": "F01",
+  "form_code": "1",
   "name": "田無演習林研究・教育利用申込書",
   "doc_type": "申込書",
   "stage": "事前",
@@ -426,7 +426,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "TNS",
-  "form_code": "F02",
+  "form_code": "2",
   "name": "利用者名簿・緊急時対応情報",
   "doc_type": "名簿",
   "stage": "利用の都度",
@@ -444,7 +444,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "AIC",
-  "form_code": "F01",
+  "form_code": "1",
   "name": "研究教育計画書",
   "doc_type": "計画書",
   "stage": "事前",
@@ -462,7 +462,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "AIC",
-  "form_code": "F02",
+  "form_code": "2",
   "name": "利用計画書",
   "doc_type": "計画書",
   "stage": "事前",
@@ -480,7 +480,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "AIC",
-  "form_code": "F03",
+  "form_code": "3",
   "name": "研究教育計画書（教育用）",
   "doc_type": "計画書",
   "stage": "事前",
@@ -498,7 +498,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "AIC",
-  "form_code": "F04",
+  "form_code": "4",
   "name": "利用申込書",
   "doc_type": "申込書",
   "stage": "利用の都度",
@@ -516,7 +516,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "AIC",
-  "form_code": "F05",
+  "form_code": "5",
   "name": "利用者名簿",
   "doc_type": "名簿",
   "stage": "利用の都度",
@@ -534,7 +534,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "AIC",
-  "form_code": "F06",
+  "form_code": "6",
   "name": "利用者全員の保険加入を証明する資料の写し",
   "doc_type": "保険",
   "stage": "利用の都度",
@@ -552,7 +552,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "AIC",
-  "form_code": "F07",
+  "form_code": "7",
   "name": "データ利用に関する申請書",
   "doc_type": "データ利用",
   "stage": "事前",
@@ -570,7 +570,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "AIC",
-  "form_code": "F08",
+  "form_code": "8",
   "name": "データを用いた成果の発表・投稿の通知書",
   "doc_type": "データ利用",
   "stage": "利用後",
@@ -588,7 +588,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "AIC",
-  "form_code": "F09",
+  "form_code": "9",
   "name": "チェックシート・危険情報フィードバック報告書",
   "doc_type": "報告",
   "stage": "利用後",
@@ -606,7 +606,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "FJI",
-  "form_code": "F01",
+  "form_code": "1",
   "name": "利用申込書",
   "doc_type": "申込書",
   "stage": "利用の都度",
@@ -624,7 +624,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "FJI",
-  "form_code": "F02",
+  "form_code": "2",
   "name": "利用者名簿",
   "doc_type": "名簿",
   "stage": "利用の都度",
@@ -642,7 +642,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "FJI",
-  "form_code": "F03",
+  "form_code": "3",
   "name": "利用者名簿省略願",
   "doc_type": "名簿",
   "stage": "利用の都度",
@@ -660,7 +660,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "FJI",
-  "form_code": "F04",
+  "form_code": "4",
   "name": "宿泊申込書",
   "doc_type": "宿泊申込",
   "stage": "利用の都度",
@@ -678,7 +678,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "FJI",
-  "form_code": "F05",
+  "form_code": "5",
   "name": "教育研究計画書",
   "doc_type": "計画書",
   "stage": "事前",
@@ -696,7 +696,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "FJI",
-  "form_code": "F06",
+  "form_code": "6",
   "name": "データ等使用願",
   "doc_type": "データ利用",
   "stage": "記載なし",
@@ -714,7 +714,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "FJI",
-  "form_code": "F07",
+  "form_code": "7",
   "name": "無人航空機（ドローン）関係書類一式",
   "doc_type": "無人航空機",
   "stage": "記載なし",
@@ -732,7 +732,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "JUG",
-  "form_code": "F01",
+  "form_code": "1",
   "name": "樹芸研究所利用申込書",
   "doc_type": "申込書",
   "stage": "利用の都度",
@@ -750,7 +750,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "JUG",
-  "form_code": "F02",
+  "form_code": "2",
   "name": "樹芸研究所研究教育計画書",
   "doc_type": "計画書",
   "stage": "事前",
@@ -768,7 +768,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "JUG",
-  "form_code": "F03",
+  "form_code": "3",
   "name": "無人航空機利用申請書類一式",
   "doc_type": "無人航空機",
   "stage": "記載なし",
@@ -786,7 +786,7 @@ var FORMS_SEED = [
  },
  {
   "forest_id": "JUG",
-  "form_code": "F04",
+  "form_code": "4",
   "name": "見学者名簿",
   "doc_type": "名簿",
   "stage": "利用の都度",

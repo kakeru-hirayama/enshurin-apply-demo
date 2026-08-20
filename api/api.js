@@ -352,11 +352,26 @@ var API = (function () {
   }
 
   /**
+   * 個人情報を見てよい役割
+   *
+   * ★必ず「見てよい側」を並べる。「見てはいけない側」を並べてはいけない。
+   *   後者だと、綴りの誤り・空文字・新しく増えた役割が、
+   *   すべて「見てよい」に落ちてしまう。
+   *   （2026-08-20 のテストケースの指摘 P-10）
+   */
+  var CAN_SEE_PERSONAL = {
+    '施設担当者': true,
+    '施設管理者': true,
+    'システム管理者': true
+  };
+
+  /**
    * 参加者の一覧を、権限に応じた見え方で返す
    * ★これがこのシステムの肝。誰が呼ぶかで返る内容が変わる
    */
   function getParticipants(appId, viewerRole) {
     var users = byId(db.readAll('M_USER'), 'user_id');
+    var canSee = CAN_SEE_PERSONAL[viewerRole] === true;
 
     return db.readAll('T_PARTICIPANT')
       .filter(function (p) { return p.app_id === appId; })
@@ -369,8 +384,8 @@ var API = (function () {
           reg_status: p.reg_status
         };
 
-        // 代表者にはここまでしか見せない
-        if (viewerRole === '代表者' || viewerRole === '参加者') return out;
+        // 見てよいと明示された役割でなければ、ここまでしか返さない
+        if (!canSee) return out;
 
         // 職員には宿泊業務に必要な範囲を見せる
         out.org = u.org;
@@ -400,10 +415,26 @@ var API = (function () {
    * ★開いた記録が必ず残る。これがあるから通常は伏せておける
    */
   function openEmergencyContact(userId, staffId, reason) {
+    // ① 誰が開こうとしているかを確かめる
+    //    職員として登録されていない者には返さない
+    var staff = staffId ? db.findByKey('M_STAFF', staffId) : null;
+    if (!staff || staff.active === false || !CAN_SEE_PERSONAL[staff.role]) {
+      return { ok: false, error: 'この操作を行う権限がありません' };
+    }
+
     var u = db.findByKey('M_USER', userId);
-    if (!u) return null;
-    writeAudit(staffId, '緊急連絡先を開いた', userId, reason || '');
-    return { user_id: userId, name: u.name, emergency: u.emergency };
+    if (!u) return { ok: false, error: '該当する方が見つかりません' };
+
+    // ② 記録を先に書く。書けなければ返さない
+    //    ★通常は伏せておける根拠が「開いた記録が残ること」なので、
+    //      記録が残せない状態で中身を渡してはいけない。
+    try {
+      writeAudit(staffId, '緊急連絡先を開いた', userId, reason || '');
+    } catch (e) {
+      return { ok: false, error: '記録を残せなかったため、表示を取りやめました' };
+    }
+
+    return { ok: true, user_id: userId, name: u.name, emergency: u.emergency };
   }
 
   // ------------------------------------------------ 資料とやり取り
@@ -593,10 +624,18 @@ var API = (function () {
   /** 使うアダプタを差し替える。本番へ移すときはここに渡すものを変える */
   function useAdapter(adapter) { db = adapter; }
 
+  /**
+   * いま使っているアダプタを返す
+   * ★画面から呼ぶためのものではない。
+   *   auth.js のように、API層と同じ立場で動くものだけが使う。
+   */
+  function adapter() { return db; }
+
   // ------------------------------------------------ 公開する窓口
 
   return {
     useAdapter: useAdapter,
+    adapter: adapter,
 
     // 申込
     getApplications: getApplications,

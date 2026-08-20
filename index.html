@@ -45,6 +45,10 @@
   }
   .card p{margin:0; font-size:13px; color:var(--gray); line-height:1.7}
   .card ul{margin:8px 0 0; padding-left:18px; font-size:12.5px; color:var(--gray)}
+  .card .login{margin-top:11px; padding:9px 11px; background:var(--green-pale);
+               border-radius:4px; font-size:11.5px; line-height:1.8; color:var(--green)}
+  .card .login code{background:#fff; padding:1px 6px; border-radius:3px;
+                    font-size:11px; color:#333}
   .card li{margin-bottom:2px}
 
   .sub{background:#fff; border:1px solid var(--line); border-radius:6px;
@@ -101,12 +105,19 @@
     <a class="card" href="staff/">
       <span class="who">職員の方</span>
       <h3>受付・管理</h3>
-      <p>申込の確認から、年報の集計まで。8つの演習林を切り替えられます。</p>
+      <p>申込の確認から、年報の集計まで。権限に応じて見える範囲が変わります。</p>
       <ul>
         <li>カレンダー／申込一覧／代表者ごとの表示</li>
         <li>宿泊施設の空き状況</li>
         <li>年報の集計をExcel・Wordで出力</li>
       </ul>
+      <div class="login">
+        <b>ご覧いただくときは</b><br>
+        下記のいずれかを入力し、画面に出る6桁の番号をそのままお使いください。<br>
+        <code>tanto@example.ac.jp</code>　施設担当者<br>
+        <code>kanri@example.ac.jp</code>　施設管理者<br>
+        <code>honbu@example.ac.jp</code>　本部担当者
+      </div>
     </a>
 
     <a class="card" href="apply/">
@@ -119,12 +130,17 @@
       </ul>
     </a>
 
-    <div class="card" style="background:#FAFBFA">
-      <span class="who" style="background:#EEE;color:#888">準備中</span>
-      <h3>参加者の登録画面</h3>
-      <p>ご自身の情報を登録していただく画面です。利用申込の画面から
-         「参加者の入力画面を見る」でご覧いただけます。</p>
-    </div>
+    <a class="card" href="profile/">
+      <span class="who">ご一緒に来られる方</span>
+      <h3>ご自身の情報の登録</h3>
+      <p>参加される方が、ご自身で情報を登録する画面です。
+         本来は招待のご案内から開きます。</p>
+      <ul>
+        <li>年齢・アレルギー・緊急連絡先はここでのみ入力</li>
+        <li>利用代表者にはこの内容が見えない</li>
+        <li>一度登録すれば7演習林で共通</li>
+      </ul>
+    </a>
 
   </div>
 
@@ -145,7 +161,14 @@
   </div>
 
   <div class="sub">
-    <h3>3　利用代表者には個人情報が見えない</h3>
+    <h3>3　権限によって見える範囲が変わる</h3>
+    <p>職員の画面は、入った方の権限で見え方が変わります。
+       施設担当者は自分の演習林だけ、本部担当者は全演習林の集計だけが見えます。
+       上の3つのアドレスを入れ替えてお試しください。</p>
+  </div>
+
+  <div class="sub">
+    <h3>4　利用代表者には個人情報が見えない</h3>
     <p>参加者の登録では、氏名とメールアドレスしか入力しません。
        年齢・アレルギー・国籍・緊急連絡先は、ご本人に直接入力していただきます。
        職員の画面では、緊急連絡先は通常は伏せられており、
@@ -153,7 +176,7 @@
   </div>
 
   <div class="sub">
-    <h3>4　年報の集計がボタン1つで出る</h3>
+    <h3>5　年報の集計がボタン1つで出る</h3>
     <p>職員の画面の「年報の集計」から、ExcelまたはWordで出力できます。
        現在エクセルの数式で行われている集計を置き換えるものです。</p>
   </div>

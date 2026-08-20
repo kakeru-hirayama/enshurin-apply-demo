@@ -96,6 +96,25 @@
 
   .note{font-size:12px; color:var(--gray); margin-top:8px; line-height:1.7}
   .hl{background:#FFF8E6; padding:2px 5px; border-radius:2px}
+  .drop{border:2px dashed var(--line); border-radius:6px; padding:26px;
+        text-align:center; color:var(--gray); font-size:13px; cursor:pointer;
+        transition:.15s; background:#FAFCFA}
+  .drop:hover{border-color:var(--green-mid); background:var(--green-pale)}
+  .drop.over{border-color:var(--green); background:var(--green-pale);
+             color:var(--green)}
+  .files{margin-top:14px}
+  .files .f{display:flex; align-items:center; gap:10px; padding:8px 11px;
+            border:1px solid var(--line); border-radius:4px; margin-bottom:6px;
+            font-size:13px; background:#fff}
+  .files .f .nm{flex:1; overflow:hidden; text-overflow:ellipsis;
+                white-space:nowrap}
+  .files .f .sz{color:var(--gray); font-size:11.5px; white-space:nowrap}
+  .files .f .st{font-size:11.5px; white-space:nowrap}
+  .files .f.ok .st{color:var(--green-mid)}
+  .files .f.ng{border-color:var(--accent); background:var(--accent-pale)}
+  .files .f.ng .st{color:var(--accent)}
+  .files .f .x{cursor:pointer; color:var(--gray); padding:0 4px}
+  .files .f .x:hover{color:var(--accent)}
   .devnote{
     margin-top:22px; padding:11px 13px; background:#fff;
     border:1px dashed var(--line); border-radius:4px;
@@ -121,6 +140,7 @@
 <script src="../api/adapter_memory.js"></script>
 <script src="../api/api.js"></script>
 <script src="../api/deadline.js"></script>
+<script src="../api/upload.js"></script>
 <script src="../api/seed.js"></script>
 <script src="../api/forms_seed.js"></script>
 <script>
@@ -355,11 +375,20 @@ function step3(){
     previewForms()+
     '<div class="card">'+
       '<h2>書類の提出</h2>'+
-      '<p class="lead">この画面から提出できます。あとから追加でご提出いただくこともできます。</p>'+
-      '<div style="border:2px dashed var(--line);border-radius:5px;padding:26px;'+
-        'text-align:center;color:var(--gray);font-size:13px">'+
-        'ここにファイルをドラッグするか、クリックして選んでください'+
+      '<p class="lead">この画面から提出できます。'+
+        'あとから追加でご提出いただくこともできます。</p>'+
+
+      '<div class="drop" id="drop" '+
+        'onclick="document.getElementById(\'file\').click()">'+
+        'ここにファイルを置くか、クリックして選んでください<br>'+
+        '<span style="font-size:11.5px">'+
+          'PDF・Word・Excel・画像　1件あたり20MBまで</span>'+
       '</div>'+
+      '<input type="file" id="file" multiple style="display:none" '+
+        'onchange="Files.add(this.files)">'+
+
+      '<div class="files" id="filelist"></div>'+
+
       '<div class="note">提出された書類は、この申込に紐づけて保管されます。'+
         '利用が終わった後の報告書や、成果として公表された論文も、'+
         '同じ場所に追加していただけます。</div>'+
@@ -368,8 +397,86 @@ function step3(){
       '<button class="btn s" onclick="goto(2)">戻る</button>'+
       '<button class="btn p" onclick="goto(4)">次へ　内容の確認</button>'+
     '</div>'+
-    devNote('attachFile( ) で申込に紐づける。実体は Google ドライブに置く');
+    devNote('Upload.check( ) で受け付けてよい形式かを調べ、'+
+            'attachFile( ) で申込に紐づける。実体はドライブに置く');
+
+  Files.render();
+  Files.bindDrop();
 }
+
+/**
+ * 選ばれたファイルを覚えておく
+ * ★申込が成立する前に選ばれることがあるため、
+ *   いったん手元に持ち、申込ができた時点でまとめて送る。
+ */
+var Files = (function(){
+  var list = [];
+
+  function add(fileList){
+    [].slice.call(fileList).forEach(function(f){
+      var c = Upload.check(f);
+      list.push({ file:f, name:f.name, size:f.size,
+                  ok:c.ok, error:c.error, kind:c.kind, sent:false });
+    });
+    render();
+  }
+
+  function remove(i){ list.splice(i,1); render(); }
+
+  function render(){
+    var el = document.getElementById('filelist');
+    if(!el) return;
+    if(!list.length){ el.innerHTML = ''; return; }
+
+    el.innerHTML = list.map(function(f,i){
+      return '<div class="f '+(f.ok ? (f.sent?'ok':'') : 'ng')+'">'+
+        '<span class="nm">'+esc(f.name)+'</span>'+
+        '<span class="sz">'+Upload.mb(f.size)+'</span>'+
+        '<span class="st">'+
+          (f.ok ? (f.sent ? '送信済み' : (f.kind||'')) : esc(f.error))+
+        '</span>'+
+        '<span class="x" onclick="Files.remove('+i+')">×</span>'+
+      '</div>';
+    }).join('');
+  }
+
+  function bindDrop(){
+    var d = document.getElementById('drop');
+    if(!d) return;
+    ['dragenter','dragover'].forEach(function(ev){
+      d.addEventListener(ev, function(e){
+        e.preventDefault(); d.classList.add('over');
+      });
+    });
+    ['dragleave','drop'].forEach(function(ev){
+      d.addEventListener(ev, function(e){
+        e.preventDefault(); d.classList.remove('over');
+      });
+    });
+    d.addEventListener('drop', function(e){
+      if(e.dataTransfer && e.dataTransfer.files) add(e.dataTransfer.files);
+    });
+  }
+
+  /** 申込ができたら、まとめて送る */
+  function flush(appId){
+    var target = list.filter(function(f){ return f.ok && !f.sent; });
+    if(!target.length) return Promise.resolve([]);
+    return Upload.sendAll(appId, target.map(function(f){ return f.file; }),
+                          {phase:'利用前', kind:'提出書類'},
+                          function(r){
+                            list.forEach(function(f){
+                              if(f.name === r.name) f.sent = r.ok;
+                            });
+                            render();
+                          });
+  }
+
+  function count(){ return list.filter(function(f){ return f.ok; }).length; }
+
+  return { add:add, remove:remove, render:render, bindDrop:bindDrop,
+           flush:flush, count:count, list:function(){ return list; } };
+})();
 
 // ============================================ 4　確認
 function step4(){
@@ -388,7 +495,8 @@ function step4(){
        ['ご一緒に来られる方', S.invites.length ?
           S.invites.map(function(p){return p.name;}).join('、')+
           '（'+S.invites.length+'名）' : 'なし'],
-       ['宿泊', d.has_lodging ? 'あり' : 'なし']
+       ['宿泊', d.has_lodging ? 'あり' : 'なし'],
+       ['提出する書類', Files.count() ? Files.count()+' 件' : 'なし']
       ].map(function(r){
         return '<tr><th style="width:170px">'+esc(r[0])+'</th><td>'+esc(r[1])+'</td></tr>';
       }).join('')+
@@ -417,8 +525,12 @@ function submitApp(){
   var valid = S.invites.filter(function(p){ return p.name && p.email; });
   if(valid.length) API.inviteParticipants(appId, valid);
   S.appId = appId;
-  S.step = 5;
-  render();
+
+  // 選ばれていた書類を、この申込に紐づけて送る
+  Files.flush(appId).then(function(){
+    S.step = 5;
+    render();
+  });
 }
 
 // ============================================ 5　完了
